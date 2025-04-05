@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, useColorScheme, Switch, Pressable } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { SignOutButton } from '../components/SignOutButton';
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
@@ -31,7 +32,6 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
-        
       </View>
 
       <View style={styles.content}>
@@ -47,7 +47,6 @@ export default function SettingsScreen() {
         </View>
         <View style={[styles.settingGroup, { backgroundColor: theme.surface }]}>
           {renderSettingItem('crown-outline', 'Premium Features')}
-        
         </View>
 
         <View style={styles.sectionHeader}>
@@ -57,12 +56,14 @@ export default function SettingsScreen() {
           {renderSettingItem('email-outline', 'Contact Support')}
           {renderSettingItem('information-outline', 'About')}
         </View>
+      <View style={styles.logoutContainer}>
+         <SignOutButton
+           style={[styles.logoutButtonBase, { backgroundColor: theme.secondary }]}
+           textStyle={{ color: theme.text }}
+         />
+      </View>
       </View>
 
-      <Pressable style={styles.logoutButton}>
-        <MaterialCommunityIcons name="logout" size={18} color={theme.error} />
-        <Text style={[styles.logoutText, { color: theme.error }]}>Log Out</Text>
-      </Pressable>
     </SafeAreaView>
   );
 }
@@ -132,19 +133,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    marginHorizontal: 24,
-    marginBottom: 24,
-    marginTop: 8,
-    borderRadius: 16,
-    gap: 8,
+  logoutContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    paddingTop: 8,
   },
-  logoutText: {
-    fontSize: 16,
-    fontWeight: '600',
+  logoutButtonBase: {
+    padding: 20,
+    borderRadius: 30,
   },
 });

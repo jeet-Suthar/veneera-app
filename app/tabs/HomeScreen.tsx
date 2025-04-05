@@ -1,9 +1,10 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, useColorScheme, Pressable } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, useColorScheme, Pressable, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import RecentPatientCard from '../components/RecentPatientCard';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 const MOCK_RECENT_PATIENTS = [
   {
@@ -26,6 +27,56 @@ const MOCK_RECENT_PATIENTS = [
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const [isOverlayVisible, setIsOverlayVisible] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current; // Initial value for opacity: 0
+  const translateYAnim = useRef(new Animated.Value(-20)).current; // Initial value for Y translation
+
+  useEffect(() => {
+    if (isOverlayVisible) {
+      // Animate in
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateYAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Animate out
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateYAnim, {
+          toValue: -20,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isOverlayVisible, fadeAnim, translateYAnim]);
+
+  const toggleOverlay = () => {
+    setIsOverlayVisible(!isOverlayVisible);
+  };
+
+  const handleSeeAllNotifications = () => {
+    // TODO: Implement navigation to NotificationScreen
+    router.push({
+      pathname: "/screens/NotificationScreen",
+      
+    });
+
+    console.log('Navigate to Notification Screen');
+    toggleOverlay(); // Close overlay after clicking
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -33,13 +84,14 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View>
             <Text style={[styles.welcome, { color: theme.textSecondary }]}>
-              Welcome back,
+              {/* Welcome */}
             </Text>
             <Text style={[styles.doctorName, { color: theme.text }]}>
-              Dr. Smith
+              {/* {user?.fullName} */}
             </Text>
           </View>
           <Pressable
+            onPress={toggleOverlay}
             style={[styles.notificationBadge, { backgroundColor: theme.surface }]}
           >
             <MaterialCommunityIcons name="bell-outline" size={22} color={theme.primary} />
@@ -73,6 +125,31 @@ export default function HomeScreen() {
           ))}
         </View>
       </ScrollView>
+
+      {/* Notification Overlay */}
+      {isOverlayVisible && (
+         <Pressable style={styles.overlayBackdrop} onPress={toggleOverlay} />
+      )}
+      <Animated.View
+        style={[
+          styles.notificationOverlay,
+          {
+            backgroundColor: theme.cardBackground,
+            opacity: fadeAnim,
+            transform: [{ translateY: translateYAnim }],
+          },
+          !isOverlayVisible && styles.hiddenOverlay,
+        ]}
+      >
+        <Text style={[styles.overlayText, { color: theme.text }]}>
+            Welcome to the application! 👋
+        </Text>
+        <Pressable onPress={handleSeeAllNotifications}>
+            <Text style={[styles.overlayLink, { color: theme.primary }]}>
+                See All Notifications
+            </Text>
+        </Pressable>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -159,5 +236,44 @@ const styles = StyleSheet.create({
   },
   recentPatientsContainer: {
     gap: 14,
+    paddingBottom: 40,
+  },
+  overlayBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 1,
+  },
+  notificationOverlay: {
+    position: 'absolute',
+    top: 70,
+    right: 20,
+    width: 260,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 2,
+  },
+  hiddenOverlay: {
+    transform: [{ translateY: -1000 }],
+    opacity: 0,
+  },
+  overlayText: {
+    fontSize: 15,
+    marginBottom: 16,
+    lineHeight: 21,
+  },
+  overlayLink: {
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingTop: 12,
+    marginTop: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(128, 128, 128, 0.3)',
   },
 });
