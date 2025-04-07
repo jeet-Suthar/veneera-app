@@ -24,9 +24,10 @@ import ReactNativeZoomableView from '@dudigital/react-native-zoomable-view/src/R
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
+import * as SecureStore from 'expo-secure-store';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { PatientData } from '../tabs/AddPatientScreen';
-import { savePatientImages } from '../utils/patientImages';
+import { getCurrentUser, getPatientsForUser, savePatientsForUser } from '../utils/patientStorage';
 
 // Veneer options
 const SHAPES = ["Natural", "Hollywood", "Cannie", "Oval", "Celebrity"] as const;
@@ -82,6 +83,7 @@ export default function GenerateImagesScreen() {
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [isSourceModalVisible, setIsSourceModalVisible] = useState(false);
+  const [selectedForPatient, setSelectedForPatient] = useState<number | null>(null);
   const flatListRef = useRef<FlatList<string>>(null);
 
   // Request media library permission on mount for saving
@@ -187,6 +189,9 @@ export default function GenerateImagesScreen() {
   };
 
   const generateImages = async (): Promise<void> => {
+    // Reset the selected image when generating new ones
+    setSelectedForPatient(null);
+    
     if (!image) {
       Alert.alert('No image', 'Please upload or take a photo first.');
       return;
@@ -325,6 +330,11 @@ export default function GenerateImagesScreen() {
   };
 
   const regenerateImage = async (index: number): Promise<void> => {
+    // Reset selection if the regenerated image was selected
+    if (selectedForPatient === index) {
+      setSelectedForPatient(null);
+    }
+    
     if (!image) {
       Alert.alert('No image', 'Source image is missing.');
       return;
@@ -394,6 +404,66 @@ export default function GenerateImagesScreen() {
     } catch (error) {
       console.error("Error saving image:", error);
       Alert.alert("Error", "Could not save the image to your gallery.");
+    }
+  };
+
+  const createPatient = async () => {
+    if (selectedForPatient === null) {
+      Alert.alert('No image selected', 'Please select one of the generated images.');
+      return;
+    }
+
+    if (!patientData.name) {
+      Alert.alert('Missing information', 'Patient name is required.');
+      return;
+    }
+
+    try {
+      const currentUser = await getCurrentUser();
+      
+      if (!currentUser) {
+        Alert.alert('Error', 'You need to be logged in to create a patient.');
+        return;
+      }
+      
+      const newPatient = {
+        id: Date.now().toString(),
+        name: patientData.name,
+        age: parseInt(patientData.age) || 0,
+        phone: patientData.phone || '',
+        email: patientData.email || '',
+        notes: patientData.notes || '',
+        createdAt: new Date().toISOString(),
+        lastVisit: new Date().toISOString(),
+        photoUrl: generatedImages[selectedForPatient],
+        userId: currentUser,
+      };
+      
+      let patients = await getPatientsForUser(currentUser);
+      patients.push(newPatient);
+      
+      const success = await savePatientsForUser(currentUser, patients);
+      
+      if (success) {
+        Alert.alert(
+          'Success',
+          'New patient created successfully!',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      } else {
+         Alert.alert('Error', 'Failed to save patient. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating patient:', error);
+      Alert.alert('Error', 'Failed to create patient. Please try again.');
+    }
+  };
+
+  const toggleImageSelection = (index: number) => {
+    if (selectedForPatient === index) {
+      setSelectedForPatient(null);
+    } else {
+      setSelectedForPatient(index);
     }
   };
 
@@ -505,6 +575,20 @@ export default function GenerateImagesScreen() {
                 </Text>
               </View>
             </TouchableOpacity>
+            
+            {/* Selection circle indicator */}
+            <TouchableOpacity
+              style={[
+                styles.selectionCircle,
+                selectedForPatient === index && styles.selectionCircleActive
+              ]}
+              onPress={() => toggleImageSelection(index)}
+            >
+              {selectedForPatient === index && (
+                <MaterialIcons name="check" size={16} color="white" />
+              )}
+            </TouchableOpacity>
+            
             <TouchableOpacity
               style={styles.regenerateIconButton}
               onPress={() => regenerateImage(index)}
@@ -579,24 +663,24 @@ export default function GenerateImagesScreen() {
                 {Array.from({ length: DEFAULT_IMAGES_TO_GENERATE }).map((_, index) => renderGeneratedImage(index))}
               </View>
 
-              {/* TODO: Add save all generated images */}
-              
-              {/* {generatedImages.filter(img => img).length > 0 && (
+              {/* Done button to create patient with selected image */}
+              {generatedImages.filter(img => img).length > 0 && (
                 <Pressable
-                  style={[styles.saveButton, { backgroundColor: theme.success }]}
-                  onPress={() => {
-                    const patientId = patientData.name.replace(/\s+/g, '').toLowerCase() + Date.now().toString().slice(-4);
-                    const cleanImages = generatedImages.filter(img => img);
-                    savePatientImages(patientId, image || '', cleanImages);
-                    Alert.alert("Success", "Images saved.", [{ text: "OK", onPress: () => router.back() }]);
-                  }}
+                  style={[
+                    styles.saveButton, 
+                    { 
+                      backgroundColor: selectedForPatient !== null ? theme.success : theme.textSecondary 
+                    }
+                  ]}
+                  onPress={createPatient}
+                  disabled={selectedForPatient === null}
                 >
-                  <MaterialCommunityIcons name="content-save-all-outline" size={20} color="white" />
-                  <Text style={styles.saveButtonText}>Save All Generated</Text>
+                  <MaterialCommunityIcons name="check-circle-outline" size={20} color="white" />
+                  <Text style={styles.saveButtonText}>
+                    {selectedForPatient !== null ? 'Done' : 'Select an image first'}
+                  </Text>
                 </Pressable>
-              )} */}
-
-
+              )}
             </View>
           )}
         </View>
@@ -958,5 +1042,24 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  // New styles for image selection
+  selectionCircle: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 1,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: 'white',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectionCircleActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: 'white',
   },
 }); 

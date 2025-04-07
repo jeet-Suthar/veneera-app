@@ -1,28 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, useColorScheme, Pressable, Animated, Image } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, useColorScheme, Pressable, Animated, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Patient } from '../types';
-
-const MOCK_RECENT_PATIENTS: Patient[] = [
-  {
-    id: '1',
-    name: 'Sarah Johnson',
-    age: 32,
-    lastVisit: '2025-03-28',
-    nextAppointment: '2025-04-15',
-    photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20young%20woman%20smiling%20naturally'
-  },
-  {
-    id: '2',
-    name: 'Michael Chen',
-    age: 45,
-    lastVisit: '2025-03-30',
-    photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20middle%20aged%20asian%20man%20smiling'
-  }
-];
+import { getCurrentUser, getPatientsForUser } from '../utils/patientStorage'; // Import helpers
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -30,6 +13,45 @@ export default function HomeScreen() {
   const [isOverlayVisible, setIsOverlayVisible] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current; // Initial value for opacity: 0
   const translateYAnim = useRef(new Animated.Value(-20)).current; // Initial value for Y translation
+  
+  const [recentPatients, setRecentPatients] = useState<Patient[]>([]); // State for recent patients
+  const [loadingPatients, setLoadingPatients] = useState(true); // Loading state
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+
+  // Fetch user and patient data when the screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadData = async () => {
+        setLoadingPatients(true);
+        try {
+          const userEmail = await getCurrentUser(); // Use helper
+          setCurrentUserEmail(userEmail);
+          
+          if (userEmail) {
+            const allPatients = await getPatientsForUser(userEmail); // Use helper
+            const sortedPatients = allPatients
+              .sort((a, b) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime())
+              .slice(0, 2);
+            setRecentPatients(sortedPatients);
+          } else {
+            setRecentPatients([]); // No user logged in
+          }
+        } catch (error) {
+          console.error('Error loading home screen data:', error);
+          setRecentPatients([]); // Reset on error
+        } finally {
+          setLoadingPatients(false);
+        }
+      };
+
+      loadData();
+
+      // Optional: Return a cleanup function if needed, though not strictly necessary for useFocusEffect unless subscribing
+      return () => {
+         // console.log('HomeScreen unfocused');
+      };
+    }, []) // Empty dependency array means this runs once when the screen focuses, similar to useEffect mount
+  );
 
   useEffect(() => {
     if (isOverlayVisible) {
@@ -112,49 +134,67 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            Recent Patients
-          </Text>
-          <Pressable onPress={() => router.push('/tabs/ManageScreen')}>
-            <Text style={[styles.viewAll, { color: theme.primary }]}>View All</Text>
-          </Pressable>
-        </View>
-        
-        <View style={styles.recentPatientsContainer}>
-          {MOCK_RECENT_PATIENTS.map((patient) => (
-            <Pressable 
-              key={patient.id}
-              style={[styles.patientCard, { backgroundColor: theme.surface }]} 
-              onPress={() => navigateToPatientDetail(patient.id)}
-            >
-              <Image source={{ uri: patient.photoUrl }} style={styles.patientPhoto} />
-              <View style={styles.patientInfo}>
-                <Text style={[styles.patientName, { color: theme.text }]}>{patient.name}</Text>
-                <Text style={[styles.patientDetails, { color: theme.textSecondary }]}>
-                  Age: {patient.age}
-                </Text>
-                <Text style={[styles.patientDetails, { color: theme.textSecondary }]}>
-                  Last Visit: {new Date(patient.lastVisit).toLocaleDateString()}
-                </Text>
-              </View>
-              {patient.nextAppointment && (
-                <View style={[styles.appointmentBadge, { backgroundColor: theme.secondary }]}>
-                  <MaterialCommunityIcons name="calendar-clock" size={14} color={theme.primary} />
-                  <Text style={[styles.appointmentText, { color: theme.primary }]}>
-                    {new Date(patient.nextAppointment).toLocaleDateString()}
-                  </Text>
-                </View>
-              )}
-              <MaterialCommunityIcons 
-                name="chevron-right" 
-                size={20} 
-                color={theme.textSecondary}
-                style={styles.chevron}
-              />
-            </Pressable>
-          ))}
-        </View>
+        {/* Conditionally render Recent Patients section */}
+        {loadingPatients ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={theme.primary} />
+          </View>
+        ) : recentPatients.length > 0 ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                Recent Patients
+              </Text>
+              <Pressable onPress={() => router.push('/tabs/ManageScreen')}>
+                <Text style={[styles.viewAll, { color: theme.primary }]}>View All</Text>
+              </Pressable>
+            </View>
+            
+            <View style={styles.recentPatientsContainer}>
+              {recentPatients.map((patient) => (
+                <Pressable 
+                  key={patient.id}
+                  style={[styles.patientCard, { backgroundColor: theme.surface }]} 
+                  onPress={() => navigateToPatientDetail(patient.id)}
+                >
+                  <Image 
+                    source={{ uri: patient.photoUrl }} 
+                    style={styles.patientPhoto} 
+                    defaultSource={require('../../assets/images/default-avatar.png')}
+                  />
+                  <View style={styles.patientInfo}>
+                    <Text style={[styles.patientName, { color: theme.text }]}>{patient.name}</Text>
+                    <Text style={[styles.patientDetails, { color: theme.textSecondary }]}>
+                      Age: {patient.age}
+                    </Text>
+                    <Text style={[styles.patientDetails, { color: theme.textSecondary }]}>
+                      Last Visit: {new Date(patient.lastVisit).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  {patient.nextAppointment && (
+                    <View style={[styles.appointmentBadge, { backgroundColor: theme.secondary }]}>
+                      <MaterialCommunityIcons name="calendar-clock" size={14} color={theme.primary} />
+                      <Text style={[styles.appointmentText, { color: theme.primary }]}>
+                        {new Date(patient.nextAppointment).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  )}
+                  <MaterialCommunityIcons 
+                    name="chevron-right" 
+                    size={20} 
+                    color={theme.textSecondary}
+                    style={styles.chevron}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : (
+           // Optional: Show a message or different content if no recent patients
+           <View style={styles.noPatientsContainer}>
+             <Text style={{ color: theme.textSecondary }}>No recent patient activity.</Text>
+           </View>
+        )}
       </ScrollView>
 
       {isOverlayVisible && (
@@ -348,5 +388,18 @@ const styles = StyleSheet.create({
     marginTop: 4,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(128, 128, 128, 0.3)',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    marginTop: 20,
+  },
+  noPatientsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    marginTop: 10,
+    // You can add more styling here if needed
   },
 });

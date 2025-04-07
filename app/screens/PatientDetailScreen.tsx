@@ -1,68 +1,21 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, Pressable, useColorScheme } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Image, ScrollView, Pressable, useColorScheme, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../utils/theme';
 import { Patient } from '../types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import { getCurrentUser, getPatientsForUser } from '../utils/patientStorage'; // Import helpers
 
 // Define extended patient type with additional fields
 type ExtendedPatient = Patient & {
-  email: string;
-  phone: string;
-  address: string;
+  email?: string;
+  phone?: string;
+  address?: string;
   notes?: string;
-  aiImages?: string[];
-};
-
-// Mock data for patients to look up by ID
-const MOCK_PATIENTS: Record<string, ExtendedPatient> = {
-  '1': {
-    id: '1',
-    name: 'Sarah Johnson',
-    age: 32,
-    email: 'sarah.johnson@example.com',
-    phone: '(555) 123-4567',
-    address: '123 Main St, Anytown, CA 94123',
-    lastVisit: '2023-03-15',
-    nextAppointment: '2023-04-10',
-    photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20young%20woman%20smiling%20naturally',
-    notes: 'Patient reported sensitivity in upper right molar.',
-    aiImages: [
-      'https://api.a0.dev/assets/image?text=dental%20xray%20showing%20molar%20with%20cavity',
-      'https://api.a0.dev/assets/image?text=3d%20model%20of%20upper%20teeth'
-    ]
-  },
-  '2': {
-    id: '2',
-    name: 'Michael Chen',
-    age: 45,
-    email: 'michael.chen@example.com',
-    phone: '(555) 987-6543',
-    address: '456 Oak Ave, Anytown, CA 94123',
-    lastVisit: '2023-03-01',
-    photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20middle%20aged%20asian%20man%20smiling',
-    notes: 'Routine cleaning completed. No issues found.',
-    aiImages: [
-      'https://api.a0.dev/assets/image?text=dental%20xray%20showing%20healthy%20teeth',
-      'https://api.a0.dev/assets/image?text=healthy%20gums%20closeup%20image'
-    ]
-  },
-  '3': {
-    id: '3',
-    name: 'Emma Wilson',
-    age: 28,
-    email: 'emma.wilson@example.com',
-    phone: '(555) 456-7890',
-    address: '789 Maple St, Anytown, CA 94123',
-    lastVisit: '2023-02-20',
-    nextAppointment: '2023-04-15',
-    photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20young%20blonde%20woman',
-    aiImages: [
-      'https://api.a0.dev/assets/image?text=dental%20scan%20of%20wisdom%20teeth',
-      'https://api.a0.dev/assets/image?text=jawline%20xray%20profile%20view'
-    ]
-  }
+  createdAt?: string;
+  userId?: string;
 };
 
 export default function PatientDetailScreen() {
@@ -71,10 +24,81 @@ export default function PatientDetailScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   
-  // Get patient data or default to first patient if not found
-  const patient = patientId && MOCK_PATIENTS[patientId] 
-    ? MOCK_PATIENTS[patientId] 
-    : MOCK_PATIENTS['1'];
+  const [patient, setPatient] = useState<ExtendedPatient | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Load patient data from SecureStore
+  useEffect(() => {
+    const loadPatientData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        if (!patientId) {
+          setError('No patient ID provided');
+          setLoading(false);
+          return;
+        }
+        
+        const currentUser = await getCurrentUser(); // Use helper
+        if (!currentUser) {
+          setError('Not logged in');
+          setLoading(false);
+          return;
+        }
+        
+        const patients = await getPatientsForUser(currentUser); // Use helper
+        const foundPatient = patients.find((p: ExtendedPatient) => p.id === patientId);
+        
+        if (foundPatient) {
+          setPatient(foundPatient);
+        } else {
+          setError('Patient not found');
+        }
+      } catch (error) {
+        console.error('Error loading patient:', error);
+        setError('Failed to load patient data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadPatientData();
+  }, [patientId]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.loadingContainer, { backgroundColor: theme.background }]} edges={['top']}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={{ color: theme.text, marginTop: 12 }}>Loading patient data...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !patient) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text} />
+          </Pressable>
+          <Text style={[styles.screenTitle, { color: theme.text }]}>Patient Details</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.errorContainer}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={48} color={theme.error} />
+          <Text style={[styles.errorText, { color: theme.error }]}>{error || 'Failed to load patient'}</Text>
+          <Pressable 
+            style={[styles.errorButton, { backgroundColor: theme.primary }]}
+            onPress={() => router.back()}
+          >
+            <Text style={{ color: 'white' }}>Go Back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -95,17 +119,21 @@ export default function PatientDetailScreen() {
       >
         {/* Patient Profile Section */}
         <View style={styles.profileSection}>
-          <Image source={{ uri: patient.photoUrl }} style={styles.patientPhoto} />
+          <Image 
+            source={{ uri: patient.photoUrl }} 
+            style={styles.patientPhoto}
+            defaultSource={require('../../assets/images/default-avatar.png')}
+          />
           <Text style={[styles.patientName, { color: theme.text }]}>{patient.name}</Text>
           <Text style={[styles.patientAge, { color: theme.textSecondary }]}>
             Age: {patient.age}
           </Text>
           
-          {patient.nextAppointment && (
+          {patient.createdAt && (
             <View style={[styles.nextAppointment, { backgroundColor: theme.secondary }]}>
-              <MaterialCommunityIcons name="calendar-clock" size={16} color={theme.primary} />
+              <MaterialCommunityIcons name="calendar-check" size={16} color={theme.primary} />
               <Text style={[styles.appointmentText, { color: theme.primary }]}>
-                Next: {new Date(patient.nextAppointment).toLocaleDateString()}
+                Created: {new Date(patient.createdAt).toLocaleDateString()}
               </Text>
             </View>
           )}
@@ -118,31 +146,49 @@ export default function PatientDetailScreen() {
         </View>
 
         <View style={[styles.infoCard, { backgroundColor: theme.surface }]}>
-          <View style={styles.infoItem}>
-            <MaterialCommunityIcons name="email-outline" size={18} color={theme.primary} style={styles.infoIcon} />
-            <View>
-              <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Email</Text>
-              <Text style={[styles.infoValue, { color: theme.text }]}>{patient.email}</Text>
-            </View>
-          </View>
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          {patient.email && (
+            <>
+              <View style={styles.infoItem}>
+                <MaterialCommunityIcons name="email-outline" size={18} color={theme.primary} style={styles.infoIcon} />
+                <View>
+                  <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Email</Text>
+                  <Text style={[styles.infoValue, { color: theme.text }]}>{patient.email}</Text>
+                </View>
+              </View>
+              <View style={[styles.divider, { backgroundColor: theme.border }]} />
+            </>
+          )}
           
-          <View style={styles.infoItem}>
-            <MaterialCommunityIcons name="phone-outline" size={18} color={theme.primary} style={styles.infoIcon} />
-            <View>
-              <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Phone</Text>
-              <Text style={[styles.infoValue, { color: theme.text }]}>{patient.phone}</Text>
-            </View>
-          </View>
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          {patient.phone && (
+            <>
+              <View style={styles.infoItem}>
+                <MaterialCommunityIcons name="phone-outline" size={18} color={theme.primary} style={styles.infoIcon} />
+                <View>
+                  <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Phone</Text>
+                  <Text style={[styles.infoValue, { color: theme.text }]}>{patient.phone}</Text>
+                </View>
+              </View>
+              {patient.address && <View style={[styles.divider, { backgroundColor: theme.border }]} />}
+            </>
+          )}
           
-          <View style={styles.infoItem}>
-            <MaterialCommunityIcons name="map-marker-outline" size={18} color={theme.primary} style={styles.infoIcon} />
-            <View>
-              <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Address</Text>
-              <Text style={[styles.infoValue, { color: theme.text }]}>{patient.address}</Text>
+          {patient.address && (
+            <View style={styles.infoItem}>
+              <MaterialCommunityIcons name="map-marker-outline" size={18} color={theme.primary} style={styles.infoIcon} />
+              <View>
+                <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Address</Text>
+                <Text style={[styles.infoValue, { color: theme.text }]}>{patient.address}</Text>
+              </View>
             </View>
-          </View>
+          )}
+          
+          {!patient.email && !patient.phone && !patient.address && (
+            <View style={styles.infoItem}>
+              <Text style={[styles.infoValue, { color: theme.textSecondary, textAlign: 'center', width: '100%' }]}>
+                No contact information available
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Notes Section (if available) */}
@@ -159,38 +205,42 @@ export default function PatientDetailScreen() {
           </>
         )}
 
-        {/* AI Generated Images */}
+        {/* AI Generated Image */}
         <View style={styles.sectionHeader}>
           <MaterialCommunityIcons name="image-outline" size={18} color={theme.primary} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>AI Generated Images</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>AI Generated Image</Text>
         </View>
 
         <View style={styles.imagesContainer}>
-          {patient.aiImages?.map((imageUrl, index) => (
-            <Pressable key={index} style={[styles.imageCard, { backgroundColor: theme.surface }]}>
-              <Image 
-                source={{ uri: imageUrl }} 
-                style={styles.aiImage}
-                resizeMode="cover"
-              />
-              <View style={styles.imageFooter}>
-                <Text style={[styles.imageText, { color: theme.textSecondary }]}>Image {index + 1}</Text>
-                <MaterialCommunityIcons name="arrow-expand" size={20} color={theme.primary} />
-              </View>
-            </Pressable>
-          ))}
+          <Pressable style={[styles.imageCard, { backgroundColor: theme.surface }]}>
+            <Image 
+              source={{ uri: patient.photoUrl }} 
+              style={styles.aiImage}
+              resizeMode="cover"
+            />
+            <View style={styles.imageFooter}>
+              <Text style={[styles.imageText, { color: theme.textSecondary }]}>Veneer Design</Text>
+              <MaterialCommunityIcons name="arrow-expand" size={20} color={theme.primary} />
+            </View>
+          </Pressable>
         </View>
 
         {/* Quick Actions */}
         <View style={styles.actionsContainer}>
-          <Pressable style={[styles.actionButton2, { backgroundColor: theme.primary }]}>
-            <MaterialCommunityIcons name="phone" size={20} color="white" />
-            <Text style={styles.actionText}>Call</Text>
-          </Pressable>
-          <Pressable style={[styles.actionButton2, { backgroundColor: theme.primary }]}>
-            <MaterialCommunityIcons name="email" size={20} color="white" />
-            <Text style={styles.actionText}>Email</Text>
-          </Pressable>
+          {patient.phone && (
+            <Pressable style={[styles.actionButton2, { backgroundColor: theme.primary }]}>
+              <MaterialCommunityIcons name="phone" size={20} color="white" />
+              <Text style={styles.actionText}>Call</Text>
+            </Pressable>
+          )}
+          
+          {patient.email && (
+            <Pressable style={[styles.actionButton2, { backgroundColor: theme.primary }]}>
+              <MaterialCommunityIcons name="email" size={20} color="white" />
+              <Text style={styles.actionText}>Email</Text>
+            </Pressable>
+          )}
+          
           <Pressable style={[styles.actionButton2, { backgroundColor: theme.primary }]}>
             <MaterialCommunityIcons name="calendar-plus" size={20} color="white" />
             <Text style={styles.actionText}>Schedule</Text>
@@ -204,6 +254,28 @@ export default function PatientDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    marginTop: 12,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  errorButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
   },
   header: {
     flexDirection: 'row',

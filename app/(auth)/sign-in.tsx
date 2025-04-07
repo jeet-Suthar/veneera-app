@@ -1,10 +1,12 @@
 import React from 'react';
 import { Text, TextInput, TouchableOpacity, View, StyleSheet, Alert, useColorScheme } from 'react-native';
-import { useSignIn, useOAuth } from '@clerk/clerk-expo';
+import { useSignIn, useOAuth, useUser, useClerk } from '@clerk/clerk-expo';
 import { Link, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
+import { setCurrentUser } from '../utils/patientStorage';
 
 // Ensure WebBrowser closes properly
 WebBrowser.maybeCompleteAuthSession();
@@ -14,7 +16,9 @@ export default function SignInScreen() {
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
   const { signIn, setActive, isLoaded } = useSignIn();
+  const { user } = useUser();
   const router = useRouter();
+  const client = useClerk();
 
   const [emailAddress, setEmailAddress] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -22,9 +26,18 @@ export default function SignInScreen() {
   const [showPassword, setShowPassword] = React.useState(false);
 
   // --- OAuth Flow Hooks ---
-  // Note: We use the same hooks as sign-up, the backend handles sign-in vs sign-up
   const { startOAuthFlow: startGoogleOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
   const { startOAuthFlow: startAppleOAuthFlow } = useOAuth({ strategy: 'oauth_apple' });
+
+  // Save user info to SecureStore
+  const saveUserToStorage = async (email: string) => {
+    try {
+      await setCurrentUser(email);
+      console.log('User saved to SecureStore:', email);
+    } catch (error) {
+      console.error('Error saving user to SecureStore:', error);
+    }
+  };
 
   // --- OAuth Handler ---
   const onPressOAuth = async (startFlow: () => Promise<any>) => {
@@ -35,17 +48,32 @@ export default function SignInScreen() {
 
       if (createdSessionId) {
         await setActive({ session: createdSessionId });
-        router.replace('/tabs/HomeScreen'); // Redirect to main app after successful OAuth
+        
+        // Get the current session
+        const session = await client.session;
+        if (session) {
+          // Get the user's email from the session
+          const userEmail = session.user?.emailAddresses[0]?.emailAddress;
+          console.log('User email from session:', userEmail);
+          
+          if (userEmail) {
+            await saveUserToStorage(userEmail);
+          } else {
+            // If we can't get the email from session, use the email from the form
+            await saveUserToStorage(emailAddress);
+          }
+        } else {
+          // If no session, use the email from the form
+          await saveUserToStorage(emailAddress);
+        }
+        
+        router.replace('/tabs/HomeScreen');
       } else {
-        // Handle cases where OAuth flow might not immediately create a session
         if (signUp?.status === 'missing_requirements') {
           console.log('OAuth sign-in requires additional steps', JSON.stringify(signUp, null, 2));
-          // Check if phone_number is in the missing fields
           if (signUp.missingFields && signUp.missingFields.includes('phone_number')) {
-            // Navigate to the complete signup page
             router.push('/(auth)/complete-signup');
           } else {
-            // Handle other missing requirements
             Alert.alert('Sign In Incomplete', 'Additional information is required. Please try again or contact support.');
           }
         } else {
@@ -73,9 +101,12 @@ export default function SignInScreen() {
 
       if (signInAttempt.status === 'complete') {
         await setActive({ session: signInAttempt.createdSessionId });
-        router.replace('/tabs/HomeScreen'); // Redirect after sign-in
+        
+        // Store email as the user identifier
+        await saveUserToStorage(emailAddress);
+        
+        router.replace('/tabs/HomeScreen');
       } else {
-        // This can happen for multi-factor auth, etc.
         console.error('Sign In Status not complete:', JSON.stringify(signInAttempt, null, 2));
         Alert.alert('Sign In Pending', 'Further action may be required to complete sign-in.');
       }
@@ -91,10 +122,6 @@ export default function SignInScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Text style={[styles.title , {color: theme.text} ]}>Welcome Back! Glad to see you, Again!</Text>
-
-  
-
-  
 
       {/* Email/Password Inputs */}
       <TextInput

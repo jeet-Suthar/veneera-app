@@ -1,59 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, Pressable, useColorScheme, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TextInput, Pressable, useColorScheme, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../utils/theme';
 import { Patient } from '../types';
 import { useRouter } from 'expo-router';
-
-// Mock patient data
-const MOCK_PATIENTS: Patient[] = [
-  {
-    id: '1',
-    name: 'Sarah Johnson',
-    age: 32,
-    lastVisit: '2023-03-15',
-    nextAppointment: '2023-04-10',
-    photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20young%20woman%20smiling%20naturally'
-  },
-  {
-    id: '2',
-    name: 'Michael Chen',
-    age: 45,
-    lastVisit: '2023-03-01',
-    photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20middle%20aged%20asian%20man%20smiling'
-  },
-  {
-    id: '3',
-    name: 'Emma Wilson',
-    age: 28,
-    lastVisit: '2023-02-20',
-    nextAppointment: '2023-04-15',
-    photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20young%20blonde%20woman'
-  },
-  {
-    id: '4',
-    name: 'James Brown',
-    age: 52,
-    lastVisit: '2023-03-10',
-    photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20middle%20aged%20black%20man'
-  },
-  {
-    id: '5',
-    name: 'Lisa Garcia',
-    age: 41,
-    lastVisit: '2023-02-28',
-    nextAppointment: '2023-05-01',
-    photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20latina%20woman%20with%20long%20dark%20hair'
-  },
-  {
-    id: '6',
-    name: 'Thomas Parker',
-    age: 36,
-    lastVisit: '2023-03-22',
-    photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20mid%20thirties%20man%20with%20glasses'
-  }
-];
+import * as SecureStore from 'expo-secure-store';
+import { getCurrentUser, getPatientsForUser } from '../utils/patientStorage'; // Import helpers
 
 export default function ManageScreen() {
   const router = useRouter();
@@ -61,18 +14,50 @@ export default function ManageScreen() {
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'recent' | 'upcoming'>('all');
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
   
-  const filteredPatients = MOCK_PATIENTS.filter(patient => {
+  useEffect(() => {
+    const loadPatients = async () => {
+      try {
+        setLoading(true);
+        const userId = await getCurrentUser(); // Use helper
+        setCurrentUser(userId);
+        
+        if (userId) {
+          const userPatients = await getPatientsForUser(userId); // Use helper
+          setPatients(userPatients);
+        } else {
+          setPatients([]);
+        }
+      } catch (error) {
+        console.error('Error loading patients:', error);
+        setPatients([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadPatients();
+    
+    const intervalId = setInterval(loadPatients, 50000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const filteredPatients = patients.filter(patient => {
     const matchesSearch = patient.name.toLowerCase().includes(searchQuery.toLowerCase());
     if (!matchesSearch) return false;
     
     if (activeFilter === 'all') return true;
+    
     if (activeFilter === 'recent') {
       const lastVisitDate = new Date(patient.lastVisit);
       const oneMonthAgo = new Date();
       oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
       return lastVisitDate >= oneMonthAgo;
     }
+    
     if (activeFilter === 'upcoming') {
       return !!patient.nextAppointment;
     }
@@ -93,7 +78,11 @@ export default function ManageScreen() {
       style={[styles.patientCard, { backgroundColor: theme.surface }]}
       onPress={() => navigateToPatientDetail(item.id)}
     >
-      <Image source={{ uri: item.photoUrl }} style={styles.patientPhoto} />
+      <Image 
+        source={{ uri: item.photoUrl }} 
+        style={styles.patientPhoto} 
+        defaultSource={require('../../assets/images/default-avatar.png')}
+      />
       <View style={styles.patientInfo}>
         <Text style={[styles.patientName, { color: theme.text }]}>{item.name}</Text>
         <Text style={[styles.patientDetails, { color: theme.textSecondary }]}>
@@ -120,11 +109,20 @@ export default function ManageScreen() {
     </Pressable>
   );
 
+  const addNewPatient = () => {
+    router.push('/tabs/AddPatientScreen');
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Manage Patients</Text>
-      
+        <Pressable 
+          style={[styles.addButton, { backgroundColor: theme.primary }]}
+          onPress={addNewPatient}
+        >
+          <MaterialCommunityIcons name="plus" size={24} color="white" />
+        </Pressable>
       </View>
 
       <View style={[styles.searchContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -199,21 +197,45 @@ export default function ManageScreen() {
         </Pressable>
       </View>
 
-      <FlatList
-        data={filteredPatients}
-        renderItem={renderPatientItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.patientList}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="account-search-outline" size={48} color={theme.textSecondary} />
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-              No patients found
-            </Text>
-          </View>
-        }
-      />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={{ color: theme.text, marginTop: 12 }}>Loading patients...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredPatients}
+          renderItem={renderPatientItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.patientList}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              {!currentUser ? (
+                <>
+                  <MaterialCommunityIcons name="account-alert-outline" size={48} color={theme.textSecondary} />
+                  <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                    Please login to view your patients
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="account-search-outline" size={48} color={theme.textSecondary} />
+                  <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                    No patients found
+                  </Text>
+                  <Pressable 
+                    style={[styles.emptyStateButton, { backgroundColor: theme.primary }]}
+                    onPress={addNewPatient}
+                  >
+                    <Text style={{ color: 'white' }}>Add New Patient</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -331,5 +353,17 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     marginTop: 12,
+    marginBottom: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyStateButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    marginTop: 10,
   }
 }); 
