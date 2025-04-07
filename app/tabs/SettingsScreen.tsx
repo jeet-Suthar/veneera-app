@@ -4,13 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SignOutButton } from '../components/SignOutButton';
+import { useRouter } from 'expo-router';
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const router = useRouter();
 
-  const renderSettingItem = (icon: string, title: string, value?: boolean) => (
-    <Pressable style={styles.settingItem}>
+  const renderSettingItem = (icon: string, title: string, value?: boolean, onPress?: () => void) => (
+    <Pressable style={styles.settingItem} onPress={onPress} disabled={!onPress}>
       <View style={[styles.iconContainer, { backgroundColor: theme.secondary }]}>
         <MaterialCommunityIcons name={icon as any} size={20} color={theme.primary} />
       </View>
@@ -18,12 +20,13 @@ export default function SettingsScreen() {
       {value !== undefined ? (
         <Switch 
           value={value} 
-          onValueChange={() => {}} 
+          onValueChange={() => console.log('Theme toggle requires system implementation')} 
           trackColor={{ false: theme.border, true: theme.primary }}
+          thumbColor={theme.background}
           ios_backgroundColor={theme.border}
         />
       ) : (
-        <MaterialCommunityIcons name="chevron-right" size={18} color={theme.textSecondary} />
+        onPress && <MaterialCommunityIcons name="chevron-right" size={18} color={theme.textSecondary} />
       )}
     </Pressable>
   );
@@ -46,15 +49,15 @@ export default function SettingsScreen() {
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Subscription</Text>
         </View>
         <View style={[styles.settingGroup, { backgroundColor: theme.surface }]}>
-          {renderSettingItem('crown-outline', 'Premium Features')}
+          {renderSettingItem('crown-outline', 'Premium Features', undefined, () => router.push('/screens/PremiumFeaturesScreen'))}
         </View>
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Help & Information</Text>
         </View>
         <View style={[styles.settingGroup, { backgroundColor: theme.surface }]}>
-          {renderSettingItem('email-outline', 'Contact Support')}
-          {renderSettingItem('information-outline', 'About')}
+          {renderSettingItem('email-outline', 'Contact Support', undefined, () => router.push('/screens/ContactSupportScreen'))}
+          {renderSettingItem('information-outline', 'About', undefined, () => router.push('/screens/AboutScreen'))}
         </View>
       <View style={styles.logoutContainer}>
          <SignOutButton

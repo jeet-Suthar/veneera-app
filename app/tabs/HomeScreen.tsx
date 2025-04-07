@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, useColorScheme, Pressable, Animated } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, useColorScheme, Pressable, Animated, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
-import RecentPatientCard from '../components/RecentPatientCard';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { Patient } from '../types';
 
-const MOCK_RECENT_PATIENTS = [
+const MOCK_RECENT_PATIENTS: Patient[] = [
   {
     id: '1',
     name: 'Sarah Johnson',
@@ -68,14 +68,16 @@ export default function HomeScreen() {
   };
 
   const handleSeeAllNotifications = () => {
-    // TODO: Implement navigation to NotificationScreen
-    router.push({
-      pathname: "/screens/NotificationScreen",
-      
-    });
-
+    router.push("/screens/NotificationScreen");
     console.log('Navigate to Notification Screen');
     toggleOverlay(); // Close overlay after clicking
+  };
+
+  const navigateToPatientDetail = (patientId: string) => {
+    router.push({
+      pathname: "/screens/PatientDetailScreen",
+      params: { patientId }
+    });
   };
 
   return (
@@ -114,19 +116,47 @@ export default function HomeScreen() {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
             Recent Patients
           </Text>
-          <Pressable>
+          <Pressable onPress={() => router.push('/tabs/ManageScreen')}>
             <Text style={[styles.viewAll, { color: theme.primary }]}>View All</Text>
           </Pressable>
         </View>
         
         <View style={styles.recentPatientsContainer}>
           {MOCK_RECENT_PATIENTS.map((patient) => (
-            <RecentPatientCard key={patient.id} patient={patient} />
+            <Pressable 
+              key={patient.id}
+              style={[styles.patientCard, { backgroundColor: theme.surface }]} 
+              onPress={() => navigateToPatientDetail(patient.id)}
+            >
+              <Image source={{ uri: patient.photoUrl }} style={styles.patientPhoto} />
+              <View style={styles.patientInfo}>
+                <Text style={[styles.patientName, { color: theme.text }]}>{patient.name}</Text>
+                <Text style={[styles.patientDetails, { color: theme.textSecondary }]}>
+                  Age: {patient.age}
+                </Text>
+                <Text style={[styles.patientDetails, { color: theme.textSecondary }]}>
+                  Last Visit: {new Date(patient.lastVisit).toLocaleDateString()}
+                </Text>
+              </View>
+              {patient.nextAppointment && (
+                <View style={[styles.appointmentBadge, { backgroundColor: theme.secondary }]}>
+                  <MaterialCommunityIcons name="calendar-clock" size={14} color={theme.primary} />
+                  <Text style={[styles.appointmentText, { color: theme.primary }]}>
+                    {new Date(patient.nextAppointment).toLocaleDateString()}
+                  </Text>
+                </View>
+              )}
+              <MaterialCommunityIcons 
+                name="chevron-right" 
+                size={20} 
+                color={theme.textSecondary}
+                style={styles.chevron}
+              />
+            </Pressable>
           ))}
         </View>
       </ScrollView>
 
-      {/* Notification Overlay */}
       {isOverlayVisible && (
          <Pressable style={styles.overlayBackdrop} onPress={toggleOverlay} />
       )}
@@ -237,6 +267,49 @@ const styles = StyleSheet.create({
   recentPatientsContainer: {
     gap: 14,
     paddingBottom: 40,
+  },
+  patientCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 14,
+    position: 'relative',
+  },
+  patientPhoto: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 14,
+  },
+  patientInfo: {
+    flex: 1,
+  },
+  patientName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  patientDetails: {
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  appointmentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    position: 'absolute',
+    right: 40,
+    bottom: 16,
+    gap: 4,
+  },
+  appointmentText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  chevron: {
+    marginLeft: 'auto',
   },
   overlayBackdrop: {
     ...StyleSheet.absoluteFillObject,

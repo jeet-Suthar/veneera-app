@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,10 +22,11 @@ import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import ReactNativeZoomableView from '@dudigital/react-native-zoomable-view/src/ReactNativeZoomableView';
 import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { PatientData } from '../tabs/AddPatientScreen';
 import { savePatientImages } from '../utils/patientImages';
-import { useTheme } from '@react-navigation/native';
 
 // Veneer options
 const SHAPES = ["Natural", "Hollywood", "Cannie", "Oval", "Celebrity"] as const;
@@ -38,6 +39,7 @@ type Color = typeof COLORS[number];
 // Define constants at the top of the file
 const SERVER_URL = 'https://c531-3-238-118-170.ngrok-free.app';
 const DEFAULT_IMAGES_TO_GENERATE = 4;
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export default function GenerateImagesScreen() {
   const colorScheme = useColorScheme();
@@ -54,7 +56,6 @@ export default function GenerateImagesScreen() {
     notes: '',
   });
 
-  // Safely extract parameter values once during initial render
   useEffect(() => {
     if (params) {
       setPatientData({
@@ -65,7 +66,7 @@ export default function GenerateImagesScreen() {
         notes: String(params.notes || ''),
       });
     }
-  }, []); // Empty dependency array - run only once on mount
+  }, []); // Run only once
 
   const [image, setImage] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string>('');
@@ -79,231 +80,247 @@ export default function GenerateImagesScreen() {
   const [shape, setShape] = useState<Shape>(SHAPES[0]);
   const [color, setColor] = useState<Color>(COLORS[0]);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
-  const [galleryReady, setGalleryReady] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
+  const [isSourceModalVisible, setIsSourceModalVisible] = useState(false);
+  const flatListRef = useRef<FlatList<string>>(null);
 
-  const handleImageUpload = async (): Promise<void> => {
+  // Request media library permission on mount for saving
+  useEffect(() => {
+    (async () => {
+      await MediaLibrary.requestPermissionsAsync();
+    })();
+  }, []);
+
+  // Custom Action Sheet Modal for Image Source
+  const renderSourceModal = () => (
+    <Modal
+      visible={isSourceModalVisible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setIsSourceModalVisible(false)}
+    >
+      <Pressable style={styles.modalBackdrop} onPress={() => setIsSourceModalVisible(false)}>
+        <View style={[styles.actionSheetContainer, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.actionSheetTitle, { color: theme.textSecondary }]}>Select Image Source</Text>
+          <TouchableOpacity
+            style={styles.actionSheetButton}
+            onPress={() => { setIsSourceModalVisible(false); handleImagePick('camera'); }}
+          >
+            <MaterialCommunityIcons name="camera-outline" size={22} color={theme.primary} />
+            <Text style={[styles.actionSheetButtonText, { color: theme.primary }]}>Take Photo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionSheetButton}
+            onPress={() => { setIsSourceModalVisible(false); handleImagePick('library'); }}
+          >
+            <MaterialCommunityIcons name="image-multiple-outline" size={22} color={theme.primary} />
+            <Text style={[styles.actionSheetButtonText, { color: theme.primary }]}>Choose from Library</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionSheetButton, styles.cancelButton]}
+            onPress={() => setIsSourceModalVisible(false)}
+          >
+            <Text style={[styles.actionSheetButtonText, { color: theme.error }]}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </Pressable>
+    </Modal>
+  );
+
+  // Open the custom source modal instead of Alert
+  const chooseImageSource = (): void => {
+    setIsSourceModalVisible(true);
+  };
+
+  // Handle image picking (camera/library)
+  const handleImagePick = async (source: 'camera' | 'library'): Promise<void> => {
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (!permissionResult.granted) {
-        Alert.alert('Permission required', 'You need to grant access to your photos to upload an image.');
-        return;
+      let permissionResult: ImagePicker.PermissionStatus;
+      let pickerResult: ImagePicker.ImagePickerResult;
+
+      if (source === 'camera') {
+        const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+        permissionResult = cameraPermission.status;
+        if (permissionResult !== 'granted') {
+          Alert.alert('Permission required', 'Camera access is needed to take a photo.');
+          return;
+        }
+        pickerResult = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.7, // Compress image quality
+        });
+      } else { // source === 'library'
+        const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        permissionResult = libraryPermission.status;
+        if (permissionResult !== 'granted') {
+          Alert.alert('Permission required', 'Photo library access is needed to choose an image.');
+          return;
+        }
+        pickerResult = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.7, // Compress image quality
+        });
       }
-      
-      const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-      });
-      
+
       if (!pickerResult.canceled && pickerResult.assets && pickerResult.assets.length > 0) {
         const selectedAsset = pickerResult.assets[0];
-        setSelectedImage(selectedAsset.uri);
+        console.log(`Image selected from ${source}:`, selectedAsset.uri);
+        console.log(`Image dimensions: ${selectedAsset.width}x${selectedAsset.height}`);
+        if (selectedAsset.fileSize) {
+            console.log(`Approximate file size: ${(selectedAsset.fileSize / 1024 / 1024).toFixed(2)} MB`);
+        }
         setImage(selectedAsset.uri);
-        console.log('Image selected:', selectedAsset.uri);
+        // Reset generated images when a new source image is picked
+        setGeneratedImages([]);
+        setLoadingStates([]);
+        setErrorMessages([]);
+      } else {
+        console.log('Image picking cancelled or failed');
       }
     } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'There was an error picking the image.');
+      console.error(`Error picking image from ${source}:`, error);
+      Alert.alert('Error', `There was an error selecting the image from ${source}.`);
     }
   };
 
   const generateImages = async (): Promise<void> => {
     if (!image) {
-      Alert.alert('No image', 'Please upload an image first.');
+      Alert.alert('No image', 'Please upload or take a photo first.');
       return;
     }
+    // Reset state for 4 slots
+    setGeneratedImages(Array(DEFAULT_IMAGES_TO_GENERATE).fill(''));
+    setLoadingStates(Array(DEFAULT_IMAGES_TO_GENERATE).fill(true));
+    setErrorMessages(Array(DEFAULT_IMAGES_TO_GENERATE).fill(''));
 
-    // Clear previous images and set loading states
-    setGeneratedImages(['', '', '', '']);
-    setLoadingStates([true, true, true, true]);
-    setErrorMessages(['', '', '', '']);
-
-    // Create FormData for request
     const formData = new FormData();
     const uriParts = image.split('/');
-    const filename = uriParts[uriParts.length - 1];
-
+    const filename = uriParts.pop() || 'photo.jpg';
     let fileType = 'image/jpeg';
     if (filename.includes('.')) {
-      const extension = filename.split('.').pop()?.toLowerCase();
-      if (extension === 'png') fileType = 'image/png';
-      else if (extension === 'jpg' || extension === 'jpeg') fileType = 'image/jpeg';
+        const extension = filename.split('.').pop()?.toLowerCase();
+        if (extension === 'png') fileType = 'image/png';
+        else if (extension === 'jpg' || extension === 'jpeg') fileType = 'image/jpeg';
     }
 
-    // Create image data in the proper format for React Native
     const imageData = {
       uri: Platform.OS === 'android' ? image : image.replace('file://', ''),
       type: fileType,
       name: filename,
     };
 
-    // Add data to FormData
     formData.append('image', imageData as any);
     formData.append('shape', shape);
     formData.append('color', color);
 
-    // Server endpoint
-    const serverUrl = 'https://c531-3-238-118-170.ngrok-free.app/generate';
-    console.log('Sending request to server:', serverUrl);
+    const serverUrl = `${SERVER_URL}/generate`;
+    console.log('Starting image generation batch...');
     
     try {
-      console.log('Starting image generation process');
-      console.log('Image data:', JSON.stringify(imageData));
-      console.log('Shape:', shape);
-      console.log('Color:', color);
-      
-      // Generate images sequentially
-      for (let i = 0; i < 4; i++) {
-        await fetchImage(serverUrl, formData, i);
-      }
+      const promises = Array.from({ length: DEFAULT_IMAGES_TO_GENERATE }).map((_, i) => 
+        fetchImage(serverUrl, formData, i)
+      );
+      await Promise.all(promises); // Run fetches concurrently if possible
+      console.log('Image generation batch finished.');
     } catch (error) {
-      console.error('Server error:', error);
+      console.error('Error during generation batch:', error);
       Alert.alert(
-        'Connection Error',
-        'Failed to connect to the server. Please check your internet connection and try again.',
+        'Generation Error',
+        'An error occurred during image generation. Please check logs or try again.',
         [{ text: 'OK' }]
       );
-      
-      // Reset loading states
-      setLoadingStates([false, false, false, false]);
+      // Reset loading states on global error
+      setLoadingStates(Array(DEFAULT_IMAGES_TO_GENERATE).fill(false));
     }
   };
 
   const fetchImage = async (url: string, formData: FormData, index: number): Promise<void> => {
-    try {
-        console.log(`Starting fetch for generated image ${index}`);
-
-        const response = await fetch(url, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'Accept': 'image/jpeg, image/png, image/*',
-            },
-        });
-
-        console.log(`Response status for generated image ${index}:`, response.status);
-        
-        // Check content type to determine how to handle the response
-        const contentType = response.headers.get('Content-Type') || '';
-        console.log(`Response content type for image ${index}:`, contentType);
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`Server error for generated image ${index}: ${response.status}`, errorText);
-            throw new Error(`Server error: ${response.status}`);
-        }
-
-        // Handle different response types
-        let imageUri = '';
-        
-        if (contentType.includes('application/json')) {
-            // If the server returns JSON (which might include an image URL)
-            const jsonData = await response.json();
-            console.log(`Received JSON response for image ${index}:`, JSON.stringify(jsonData).substring(0, 100) + '...');
-            
-            // Check if JSON contains image data in a known format
-            if (jsonData.image) {
-                imageUri = jsonData.image;
-            } else if (jsonData.url) {
-                imageUri = jsonData.url;
-            } else if (jsonData.data) {
-                // Handle base64 data if it's directly in the JSON
-                imageUri = typeof jsonData.data === 'string' 
-                    ? jsonData.data.startsWith('data:') 
-                        ? jsonData.data 
-                        : `data:image/jpeg;base64,${jsonData.data}`
-                    : '';
-            }
-            
-            if (imageUri) {
-                console.log(`Extracted image URI from JSON for image ${index}, length: ${imageUri.length}`);
-            } else {
-                throw new Error("Couldn't extract image data from JSON response");
-            }
-        } else if (contentType.includes('image/')) {
-            // If the server returns an image directly
-            const blob = await response.blob();
-            console.log(`Received blob for image ${index}, size: ${blob.size}, type: ${blob.type}`);
-            
-            // Convert blob to base64
-            imageUri = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const result = reader.result as string;
-                    if (result) {
-                        console.log(`Converted blob to data URI for image ${index}, length: ${result.length}`);
-                        resolve(result);
-                    } else {
-                        reject(new Error('FileReader returned empty result'));
-                    }
-                };
-                reader.onerror = (error) => {
-                    console.error(`FileReader error for image ${index}:`, error);
-                    reject(error);
-                };
-                reader.readAsDataURL(blob);
-            });
-        } else {
-            // Unknown response type - try to handle as image anyway
-            console.warn(`Unknown content type ${contentType} for image ${index}, trying to handle as binary`);
-            const blob = await response.blob();
-            
-            // Force the MIME type based on what we expect
-            const forcedBlob = new Blob([blob], { type: 'image/jpeg' });
-            
-            imageUri = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const result = reader.result as string;
-                    if (result) {
-                        console.log(`Forced blob as image/jpeg for image ${index}, length: ${result.length}`);
-                        resolve(result);
-                    } else {
-                        reject(new Error('FileReader returned empty result'));
-                    }
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(forcedBlob);
-            });
-        }
-
-        // Set the image in state
-        console.log(`Setting image ${index} in state, URI length: ${imageUri.length}`);
-        if (imageUri) {
-            setGeneratedImages(prev => {
-                const newImages = [...prev];
-                newImages[index] = imageUri;
-                return newImages;
-            });
-        } else {
-            throw new Error('Failed to get a valid image URI');
-        }
-
-    } catch (error: any) {
-        console.error(`Error generating image ${index}:`, error);
-        setErrorMessages(prev => {
-            const newErrors = [...prev];
-            newErrors[index] = `Failed (${error.message || 'Unknown error'})`;
-            return newErrors;
-        });
-    } finally {
-        setLoadingStates(prev => {
-            const newLoading = [...prev];
-            newLoading[index] = false;
-            return newLoading;
-        });
-    }
+     try {
+         console.log(`Starting fetch for generated image ${index}`);
+         // Clone formData if running concurrently to avoid issues, otherwise reuse
+         const response = await fetch(url, {
+             method: 'POST',
+             body: formData, 
+             headers: { 'Accept': 'image/jpeg, image/png, image/*' },
+         });
+         console.log(`Response status for generated image ${index}:`, response.status);
+         const contentType = response.headers.get('Content-Type') || '';
+         console.log(`Response content type for image ${index}:`, contentType);
+ 
+         if (!response.ok) {
+             const errorText = await response.text();
+             console.error(`Server error for generated image ${index}: ${response.status}`, errorText);
+             throw new Error(`Server error: ${response.status}`);
+         }
+ 
+         let imageUri = '';
+         if (contentType.includes('application/json')) {
+             const jsonData = await response.json();
+             if (jsonData.image) imageUri = jsonData.image;
+             else if (jsonData.url) imageUri = jsonData.url;
+             else if (jsonData.data) {
+                 imageUri = typeof jsonData.data === 'string' 
+                     ? jsonData.data.startsWith('data:') 
+                         ? jsonData.data 
+                         : `data:image/jpeg;base64,${jsonData.data}`
+                     : '';
+             }
+             if (!imageUri) throw new Error("Couldn't extract image from JSON");
+         } else if (contentType.includes('image/')) {
+             const blob = await response.blob();
+             imageUri = await new Promise<string>((resolve, reject) => {
+                 const reader = new FileReader();
+                 reader.onload = () => resolve(reader.result as string);
+                 reader.onerror = reject;
+                 reader.readAsDataURL(blob);
+             });
+         } else {
+             console.warn(`Unknown content type ${contentType}, handling as binary`);
+             const blob = await response.blob();
+             const forcedBlob = new Blob([blob], { type: 'image/jpeg' }); // Assume jpeg
+             imageUri = await new Promise<string>((resolve, reject) => {
+                 const reader = new FileReader();
+                 reader.onload = () => resolve(reader.result as string);
+                 reader.onerror = reject;
+                 reader.readAsDataURL(forcedBlob);
+             });
+         }
+ 
+         console.log(`Setting image ${index} in state, URI length: ${imageUri.length}`);
+         setGeneratedImages(prev => {
+             const newImages = [...prev];
+             newImages[index] = imageUri;
+             return newImages;
+         });
+         setErrorMessages(prev => { // Clear error on success
+             const newErrors = [...prev];
+             newErrors[index] = '';
+             return newErrors;
+         });
+ 
+     } catch (error: any) {
+         console.error(`Error generating image ${index}:`, error);
+         setErrorMessages(prev => {
+             const newErrors = [...prev];
+             newErrors[index] = `Failed (${error.message || 'Unknown'})`;
+             return newErrors;
+         });
+     } finally {
+         setLoadingStates(prev => {
+             const newLoading = [...prev];
+             newLoading[index] = false;
+             return newLoading;
+         });
+     }
   };
 
   const handleImagePress = (index: number): void => {
-    console.log(`Image ${index} pressed, URI: ${generatedImages[index]?.substring(0, 50)}...`);
     if (generatedImages[index]) {
       setSelectedImageIndex(index);
       setModalVisible(true);
-      console.log(`Modal opened for image ${index}`);
     }
   };
 
@@ -312,63 +329,71 @@ export default function GenerateImagesScreen() {
       Alert.alert('No image', 'Source image is missing.');
       return;
     }
+    // Set loading state for this index
+    setLoadingStates(prev => prev.map((s, i) => i === index ? true : s));
+    setErrorMessages(prev => prev.map((e, i) => i === index ? '' : e));
 
-    // Set just this image to loading state
-    setLoadingStates(prev => {
-      const newStates = [...prev];
-      newStates[index] = true;
-      return newStates;
-    });
-    setErrorMessages(prev => {
-      const newMessages = [...prev];
-      newMessages[index] = '';
-      return newMessages;
-    });
-
-    // Create FormData for request
     const formData = new FormData();
     const uriParts = image.split('/');
-    const filename = uriParts[uriParts.length - 1];
-
+    const filename = uriParts.pop() || 'photo.jpg';
     let fileType = 'image/jpeg';
     if (filename.includes('.')) {
-      const extension = filename.split('.').pop()?.toLowerCase();
-      if (extension === 'png') fileType = 'image/png';
-      else if (extension === 'jpg' || extension === 'jpeg') fileType = 'image/jpeg';
+        const extension = filename.split('.').pop()?.toLowerCase();
+        if (extension === 'png') fileType = 'image/png';
+        else if (extension === 'jpg' || extension === 'jpeg') fileType = 'image/jpeg';
     }
-
-    // Create image data
     const imageData = {
       uri: Platform.OS === 'android' ? image : image.replace('file://', ''),
       type: fileType,
       name: filename,
     };
-
-    // Add data to FormData
     formData.append('image', imageData as any);
     formData.append('shape', shape);
     formData.append('color', color);
 
-    // Server endpoint
-    const serverUrl = 'https://c531-3-238-118-170.ngrok-free.app/generate';
+    const serverUrl = `${SERVER_URL}/generate`;
     console.log(`Regenerating image ${index}...`);
-    
+    await fetchImage(serverUrl, formData, index);
+    console.log(`Finished regeneration attempt for image ${index}`);
+  };
+
+  const downloadImage = async () => {
+    if (!modalVisible || selectedImageIndex === null) return;
+    const imageUri = generatedImages[selectedImageIndex];
+    if (!imageUri) return;
+
+    const permission = await MediaLibrary.requestPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Need access to media library to save images.");
+      return;
+    }
+
     try {
-      // Only regenerate this specific image
-      await fetchImage(serverUrl, formData, index);
-      console.log(`Image ${index} regenerated successfully`);
+      let fileUri = '';
+      // Handle base64 URIs
+      if (imageUri.startsWith('data:')) {
+        const base64Code = imageUri.split("base64,")[1];
+        const filename = `veneera-generated-${Date.now()}.jpg`; // Assume jpg
+        fileUri = FileSystem.documentDirectory + filename;
+        await FileSystem.writeAsStringAsync(fileUri, base64Code, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } else {
+        // Assume it's a remote URL (less likely with current fetch logic, but handle just in case)
+        const downloadResult = await FileSystem.downloadAsync(
+          imageUri,
+          FileSystem.documentDirectory + `veneera-generated-${Date.now()}.jpg`
+        );
+        fileUri = downloadResult.uri;
+      }
+
+      // Save the file to the media library
+      const asset = await MediaLibrary.createAssetAsync(fileUri);
+      await MediaLibrary.createAlbumAsync("Veneera Generated", asset, false);
+      Alert.alert("Success", "Image saved to your gallery in the 'Veneera Generated' album.");
     } catch (error) {
-      console.error(`Error regenerating image ${index}:`, error);
-      setErrorMessages(prev => {
-        const newMessages = [...prev];
-        newMessages[index] = `Failed to regenerate: ${error}`;
-        return newMessages;
-      });
-      setLoadingStates(prev => {
-        const newStates = [...prev];
-        newStates[index] = false;
-        return newStates;
-      });
+      console.error("Error saving image:", error);
+      Alert.alert("Error", "Could not save the image to your gallery.");
     }
   };
 
@@ -432,88 +457,9 @@ export default function GenerateImagesScreen() {
     );
   };
 
-  // Error state in generated image boxes
-  const ErrorDisplay = ({ message }: { message: string }) => (
-    <View style={styles.errorContainer}>
-        <MaterialCommunityIcons name="alert-circle-outline" size={24} color="red" />
-        <Text style={[styles.errorText, { color: 'red' }]}>{message}</Text>
-    </View>
-  );
-
-  // Empty placeholder in generated image boxes
-  const EmptyPlaceholder = ({ index }: { index: number }) => (
-     <View style={styles.emptyBoxContainer}>
-        <MaterialCommunityIcons name="image-outline" size={30} color={theme.textSecondary}/>
-        <Text style={[styles.emptyBoxText, { color: theme.textSecondary }]}>
-            Slot {index + 1}
-        </Text>
-     </View>
-  );
-
-  useEffect(() => {
-    // Log when generated images state changes
-    if (generatedImages.some(img => img !== null)) {
-      console.log('Generated images updated:', 
-        generatedImages.map((img, i) => 
-          img ? `Image ${i} present (length: ${img.length})` : `Image ${i} missing`
-        )
-      );
-    }
-  }, [generatedImages]);
-
-  // Function to handle image loading failure with fallback
-  const handleImageLoadingError = (index: number, error: any) => {
-    console.error(`Error loading generated image ${index}:`, error);
-    
-    // Try to display the error visually
-    setErrorMessages(prev => {
-      const newErrors = [...prev];
-      newErrors[index] = `Error: ${error?.message || 'Failed to load image'}`;
-      return newErrors;
-    });
-    
-    // Clear this slot to show the error message
-    setGeneratedImages(prev => {
-      const newImages = [...prev];
-      newImages[index] = ''; // Use empty string instead of null
-      return newImages;
-    });
-  };
-
-  // Add patient selection function
-  const selectPatient = (patient: any) => {
-    setSelectedPatient(patient);
-    console.log('Patient selected:', patient.name);
-  };
-
-  // Add a function to save the generated image to the patient's record
-  const saveImageToPatient = async (index: number) => {
-    if (!generatedImages[index]) {
-      Alert.alert('Error', 'No image selected');
-      return;
-    }
-
-    try {
-      // Generate a patientId from the patient data
-      const patientId = patientData.name.replace(/\s+/g, '').toLowerCase() + Date.now().toString().slice(-4);
-      
-      // Call the savePatientImages function
-      await savePatientImages(
-        patientId,
-        image || '', 
-        [generatedImages[index]]
-      );
-      Alert.alert('Success', 'Image saved to patient record');
-    } catch (error) {
-      console.error('Error saving patient image:', error);
-      Alert.alert('Error', 'Failed to save image to patient record');
-    }
-  };
-
-  // Replace the view of generated images to add regenerate button and tap function
   const renderGeneratedImage = (index: number) => {
     return (
-      <View key={index} style={styles.generatedImageWrapper}>
+      <View key={index} style={[styles.generatedImageWrapper, { borderColor: theme.border }]}>
         {loadingStates[index] ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme.primary} />
@@ -522,29 +468,28 @@ export default function GenerateImagesScreen() {
         ) : errorMessages[index] ? (
           <View style={styles.errorContainer}>
             <MaterialIcons name="error-outline" size={24} color={theme.error} />
-            <Text style={{ color: theme.error, textAlign: 'center', marginTop: 5 }}>
+            <Text style={[styles.errorText, { color: theme.error }]}>
               {errorMessages[index]}
             </Text>
             <TouchableOpacity
               style={[styles.retryButton, { backgroundColor: theme.primary }]}
               onPress={() => regenerateImage(index)}
             >
-              <Text style={{ color: 'white' }}>Retry</Text>
+              <MaterialIcons name="refresh" size={18} color="white" />
+              <Text style={{ color: 'white', marginLeft: 5, fontSize: 12 }}>Retry</Text>
             </TouchableOpacity>
           </View>
         ) : generatedImages[index] ? (
           <View style={styles.imageContainer}>
             <TouchableOpacity 
-              style={[styles.generatedImageTouchable, { backgroundColor: 'rgba(0,0,0,0.1)' }]}
+              style={styles.generatedImageTouchable}
               onPress={() => handleImagePress(index)}
               activeOpacity={0.7}
             >
               <Image
-                source={{ 
-                  uri: generatedImages[index], 
-                  cache: 'reload' 
-                }}
-                onLoad={() => console.log(`Image ${index} loaded successfully in grid`)}
+                source={{ uri: generatedImages[index], cache: 'reload' }}
+                style={styles.generatedImage}
+                resizeMode="cover"
                 onError={(e) => {
                   console.error(`Error loading image ${index} in grid:`, e.nativeEvent.error);
                   setErrorMessages(prev => {
@@ -553,35 +498,40 @@ export default function GenerateImagesScreen() {
                     return newErrors;
                   });
                 }}
-                style={styles.generatedImage}
-                resizeMode="cover"
               />
               <View style={styles.imageTapHint}>
-                <Text style={{ color: 'white', textAlign: 'center', fontSize: 12 }}>
-                  Tap to view
+                <Text style={{ color: 'white', textAlign: 'center', fontSize: 10, fontWeight: 'bold' }}>
+                  Tap to View
                 </Text>
               </View>
             </TouchableOpacity>
-            
-            {/* Regenerate button in top-right corner */}
             <TouchableOpacity
               style={styles.regenerateIconButton}
               onPress={() => regenerateImage(index)}
             >
-              <MaterialIcons name="refresh" size={22} color="#fff" />
+              <MaterialIcons name="refresh" size={18} color="#fff" />
             </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.emptyImageContainer}>
-            <MaterialIcons name="image" size={40} color="#999999" />
-            <Text style={{ color: "#999999", marginTop: 10 }}>
-              Image will appear here
+            <MaterialIcons name="image-search" size={40} color={theme.textSecondary} />
+            <Text style={{ color: theme.textSecondary, marginTop: 8, fontSize: 12 }}>
+              Slot {index + 1}
             </Text>
           </View>
         )}
       </View>
     );
   };
+
+  // Callback for FlatList view change in modal
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<any> }) => {
+    if (viewableItems.length > 0) {
+      setSelectedImageIndex(viewableItems[0].index);
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -599,181 +549,120 @@ export default function GenerateImagesScreen() {
          keyboardShouldPersistTaps="handled"
       >
         <View style={styles.imageUploadContainer}>
-          <Text style={[styles.patientName, { color: theme.text }]}>
-            {patientData.name}
-          </Text>
+          <Text style={[styles.patientName, { color: theme.text }]}>{patientData.name}</Text>
           <Text style={[styles.patientDetails, { color: theme.textSecondary }]}>
-            Age: {patientData.age} 
-            {patientData.phone ? ` • Phone: ${patientData.phone}` : ''}
+            Age: {patientData.age} {patientData.phone ? `• Phone: ${patientData.phone}` : ''}
           </Text>
-
-          {/* Conditional Rendering: Upload Button or Image Preview */}
           {!image ? (
-            <Pressable
-              style={[styles.uploadButton, { borderColor: theme.border }]}
-              onPress={handleImageUpload}
-            >
-              <MaterialCommunityIcons name="camera-plus" size={40} color={theme.primary} />
-              <Text style={[styles.uploadText, { color: theme.text }]}>Upload Patient Photo</Text>
+            <Pressable style={[styles.uploadButton, { borderColor: theme.border }]} onPress={chooseImageSource}>
+              <MaterialCommunityIcons name="camera-plus-outline" size={40} color={theme.primary} />
+              <Text style={[styles.uploadText, { color: theme.text }]}>Upload or Take Photo</Text>
             </Pressable>
           ) : (
             <View style={styles.imagePreviewContainer}>
-               <TouchableOpacity onPress={handleImageUpload} style={{ width: '100%' }}>
-                  <Image
-                      source={{ uri: image }}
-                      style={styles.imagePreview}
-                      resizeMode="contain"
-                      onError={(e) => {
-                         console.error("Error loading preview image:", e.nativeEvent.error);
-                         Alert.alert("Error", "Could not load the selected preview image.");
-                         setImage('');
-                      }}
-                  />
-               </TouchableOpacity>
-
-              {/* Shape and Color Buttons */}
+              <TouchableOpacity onPress={chooseImageSource} style={styles.imagePreviewWrapper}>
+                  <Image source={{ uri: image }} style={styles.imagePreview} resizeMode="cover" />
+                  <View style={styles.editIconOverlay}>
+                      <MaterialIcons name="edit" size={18} color="white" />
+                  </View>
+              </TouchableOpacity>
               {renderShapeButtons()}
               {renderColorButtons()}
-
-              {/* Generate Button */}
               <Pressable
-                style={[
-                    styles.button,
-                    { backgroundColor: theme.primary, marginVertical: 16 },
-                    loadingStates.some(state => state) && { backgroundColor: theme.textSecondary }
-                ]}
+                style={[styles.button, { backgroundColor: theme.primary, marginVertical: 16 }, loadingStates.some(state => state) && { backgroundColor: theme.textSecondary }]}
                 onPress={generateImages}
                 disabled={loadingStates.some(state => state)}
               >
-                {loadingStates.some(state => state) ? (
-                  <ActivityIndicator color="white" size="small" />
-                ) : (
-                  <Text style={styles.buttonText}>Generate Images</Text>
-                )}
+                {loadingStates.some(state => state) ? <ActivityIndicator color="white" size="small" /> : <Text style={styles.buttonText}>Generate Images</Text>}
               </Pressable>
-
-              {/* Generated images grid */}
               <View style={styles.generatedImagesContainer}>
-                {Array.from({ length: 4 }).map((_, index) => renderGeneratedImage(index))}
+                {Array.from({ length: DEFAULT_IMAGES_TO_GENERATE }).map((_, index) => renderGeneratedImage(index))}
               </View>
 
-              {/* Save Button - Only shown when we have at least one generated image */}
-              {generatedImages.some(img => img !== '') && (
+              {/* TODO: Add save all generated images */}
+              
+              {/* {generatedImages.filter(img => img).length > 0 && (
                 <Pressable
-                  style={[styles.saveButton, { backgroundColor: theme.primary }]}
+                  style={[styles.saveButton, { backgroundColor: theme.success }]}
                   onPress={() => {
-                    // Generate a mock ID for the patient
                     const patientId = patientData.name.replace(/\s+/g, '').toLowerCase() + Date.now().toString().slice(-4);
-                    
-                    // First create a clean array with only non-empty values
-                    const cleanImages = generatedImages.filter(img => img !== '');
-                    
-                    // Save the images using our utility
-                    savePatientImages(
-                      patientId, 
-                      image || '', 
-                      cleanImages
-                    );
-                    
-                    // Show confirmation and navigate back
-                    Alert.alert(
-                      "Success",
-                      "Images saved and associated with patient record.",
-                      [{ text: "OK", onPress: () => router.back() }]
-                    );
+                    const cleanImages = generatedImages.filter(img => img);
+                    savePatientImages(patientId, image || '', cleanImages);
+                    Alert.alert("Success", "Images saved.", [{ text: "OK", onPress: () => router.back() }]);
                   }}
                 >
-                  <MaterialCommunityIcons name="content-save" size={20} color="white" />
-                  <Text style={styles.saveButtonText}>Save to Patient Record</Text>
+                  <MaterialCommunityIcons name="content-save-all-outline" size={20} color="white" />
+                  <Text style={styles.saveButtonText}>Save All Generated</Text>
                 </Pressable>
-              )}
+              )} */}
+
+
             </View>
           )}
         </View>
       </ScrollView>
 
-      {/* Modal for Image Zoom with swipe navigation */}
+      {renderSourceModal()}
+
       <Modal
-        animationType="fade"
+        animationType="slide"
         transparent={true}
         visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={{
-          flex: 1,
-          backgroundColor: 'black',
-          width: '100%',
-          height: '100%',
-        }}>
-          <StatusBar backgroundColor="black" barStyle="light-content" />
-          
-          {/* Close button */}
-          <TouchableOpacity
-            style={{
-              position: 'absolute',
-              top: 40,
-              left: 20,
-              zIndex: 10,
-              padding: 10,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              borderRadius: 20,
-            }}
-            onPress={() => setModalVisible(false)}
-          >
-            <MaterialCommunityIcons name="close" size={24} color="white" />
-          </TouchableOpacity>
-          
-          {/* Regenerate button */}
-          {selectedImageIndex !== null && (
-            <TouchableOpacity
-              style={{
-                position: 'absolute',
-                top: 40,
-                right: 20,
-                zIndex: 10,
-                padding: 10,
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                borderRadius: 20,
-              }}
-              onPress={() => {
-                if (selectedImageIndex !== null) {
-                  regenerateImage(selectedImageIndex);
-                  setModalVisible(false);
-                }
-              }}
-            >
-              <MaterialIcons name="refresh" size={24} color="white" />
-            </TouchableOpacity>
-          )}
-          
-          {/* Image Content */}
-          {selectedImageIndex !== null && generatedImages[selectedImageIndex] && (
-            <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-              <Image
-                source={{ 
-                  uri: generatedImages[selectedImageIndex],
-                  cache: 'reload',
-                  headers: {
-                    Pragma: 'no-cache'
-                  }
-                }}
-                style={{width: '90%', height: '70%'}}
-                resizeMode="contain"
-              />
-              
-              {/* Image counter text */}
-              <Text style={{
-                position: 'absolute', 
-                bottom: 40, 
-                color: 'white', 
-                fontSize: 16,
-                fontWeight: '500'
-              }}>
-                {selectedImageIndex + 1} / {generatedImages.filter(Boolean).length}
+        <SafeAreaView style={styles.modalContainerSafeArea} edges={['top', 'bottom']}>
+           <StatusBar backgroundColor="black" barStyle="light-content" />
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <TouchableOpacity style={styles.modalHeaderButton} onPress={() => setModalVisible(false)}>
+                <MaterialCommunityIcons name="close" size={24} color="white" />
+              </TouchableOpacity>
+              <Text style={styles.modalHeaderText}>
+                  {selectedImageIndex + 1} / {generatedImages.filter(Boolean).length}
               </Text>
+              <View style={{ flexDirection: 'row', gap: 15 }}>
+                 <TouchableOpacity style={styles.modalHeaderButton} onPress={downloadImage}>
+                   <MaterialCommunityIcons name="download-outline" size={24} color="white" />
+                 </TouchableOpacity>
+                 <TouchableOpacity style={styles.modalHeaderButton} onPress={() => regenerateImage(selectedImageIndex)}>
+                   <MaterialIcons name="refresh" size={24} color="white" />
+                 </TouchableOpacity>
+              </View>
             </View>
-          )}
-        </View>
+
+            {/* Image FlatList for Swiping & Zooming */}
+            <FlatList
+              ref={flatListRef}
+              data={generatedImages.filter(img => img)}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item, index) => `generated-${index}`}
+              initialScrollIndex={selectedImageIndex}
+              getItemLayout={(data, index) => (
+                { length: screenWidth, offset: screenWidth * index, index }
+              )}
+              onViewableItemsChanged={onViewableItemsChanged}
+              viewabilityConfig={viewabilityConfig}
+              renderItem={({ item, index }) => (
+                <View style={styles.modalPage}>
+                  <ReactNativeZoomableView
+                    maxZoom={2.5}
+                    minZoom={1}
+                    initialZoom={1}
+                    bindToBorders={true}
+                    style={styles.zoomableView}
+                  >
+                    <Image
+                      source={{ uri: item, cache: 'reload' }}
+                      style={styles.modalImage}
+                      resizeMode="contain"
+                    />
+                  </ReactNativeZoomableView>
+                </View>
+              )}
+            />
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
@@ -818,7 +707,7 @@ const styles = StyleSheet.create({
   uploadButton: {
     width: '100%',
     maxWidth: 350,
-    height: 200,
+    height: 180,
     borderRadius: 12,
     borderWidth: 2,
     borderStyle: 'dashed',
@@ -835,13 +724,26 @@ const styles = StyleSheet.create({
   imagePreviewContainer: {
     width: '100%',
     alignItems: 'center',
+    position: 'relative',
+  },
+  imagePreviewWrapper: {
+      width: '100%',
+      position: 'relative',
   },
   imagePreview: {
     width: '100%',
-    height: 200,
+    height: 220,
     borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 20,
     backgroundColor: '#e0e0e0',
+  },
+  editIconOverlay: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: 6,
+    borderRadius: 15,
   },
   generatedImagesContainer: {
     flexDirection: 'row',
@@ -852,15 +754,19 @@ const styles = StyleSheet.create({
   generatedImageWrapper: {
     width: '48%',
     aspectRatio: 1,
-    height: undefined,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: '4%',
     overflow: 'hidden',
+    position: 'relative',
   },
   imageContainer: {
+    width: '100%',
+    height: '100%',
+  },
+  generatedImageTouchable: {
     width: '100%',
     height: '100%',
     alignItems: 'center',
@@ -871,21 +777,27 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   emptyImageContainer: {
-    padding: 8,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
+    padding: 10,
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    width: '100%',
+  },
   errorText: {
     textAlign: 'center',
-    paddingHorizontal: 8,
     fontSize: 12,
-    marginTop: 4,
+    marginTop: 8,
   },
   closeButton: {
     position: 'absolute',
@@ -897,8 +809,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   zoomableView: {
-    flex: 1,
-    width: '100%',
+    width: screenWidth,
+    height: screenHeight,
   },
   modalImage: {
     width: '100%',
@@ -930,15 +842,77 @@ const styles = StyleSheet.create({
   },
   modalContainerSafeArea: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.95)',
-    width: '100%',
+    backgroundColor: 'black',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  modalHeaderButton: {
+      padding: 8,
+  },
+  modalHeaderText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalPage: {
+    width: screenWidth,
+    height: screenHeight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  actionSheetContainer: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 30,
+    paddingTop: 12,
+  },
+  actionSheetTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.border,
+    marginBottom: 8,
+  },
+  actionSheetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    gap: 15,
+  },
+  actionSheetButtonText: {
+    fontSize: 17,
+    fontWeight: '500',
+  },
+  cancelButton: {
+    marginTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.light.border,
   },
   saveButton: {
     height: 50,
     borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
+    marginTop: 24,
     width: '100%',
     flexDirection: 'row',
     gap: 8,
@@ -947,23 +921,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 8,
-  },
-  emptyBoxContainer: {
-    padding: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-  },
-  emptyBoxText: {
-    fontSize: 12,
-    marginTop: 4,
-    textAlign: 'center',
   },
   button: {
     height: 50,
@@ -977,145 +934,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 15,
-    width: '100%',
-    zIndex: 10,
-  },
-  modalHeaderText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-    flex: 1,
-  },
-  modalContent: {
-    flex: 1,
-    position: 'relative',
-    width: '100%',
-  },
-  navButton: {
+  imageTapHint: {
     position: 'absolute',
-    top: '50%',
-    marginTop: -30,
-    padding: 10,
-    zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 25,
-  },
-  modalRegenerateButton: {
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 16,
-    marginHorizontal: 20,
-    width: '90%',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  generatedImageTouchable: {
-    width: '100%',
-    height: '100%',
-  },
-  imageButtonsContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 8,
+    bottom: 5,
     backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  imageActionButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 4,
-  },
-  imageActionButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  retryButton: {
-    padding: 12,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  zoomViewContainer: {
-    flex: 1,
-    position: 'relative',
-  },
-  leftTapArea: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '33.33%',
-    height: '100%',
-  },
-  rightTapArea: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: '33.33%',
-    height: '100%',
-  },
-  imageDotContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-  imageDot: {
-    width: 8,
-    height: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 4,
-    marginHorizontal: 2,
-  },
-  headerRegenerateButton: {
-    padding: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: 20,
-    zIndex: 10,
-  },
-  galleryScrollView: {
-    flex: 1,
-    width: '100%',
-  },
-  galleryContainer: {
-    width: '100%',
-    height: '100%',
-  },
-  galleryPage: {
-    width: Dimensions.get('window').width,
-    height: Dimensions.get('window').height,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   regenerateIconButton: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    zIndex: 10,
-    padding: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 20,
+    top: 8,
+    right: 8,
+    zIndex: 1,
+    padding: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 15,
   },
-  imageTapHint: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
+  retryButton: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    flexDirection: 'row',
     alignItems: 'center',
   },
 }); 
