@@ -1,7 +1,10 @@
-import { ClerkProvider } from '@clerk/clerk-expo'
-import { tokenCache } from '@clerk/clerk-expo/token-cache'
-import { Stack } from "expo-router";
+import React from 'react';
+import { ClerkProvider } from '@clerk/clerk-expo';
+import { tokenCache } from '@clerk/clerk-expo/token-cache';
+import { Stack } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
+import { useColorScheme } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 
 // Add this cache implementation
 const cache = {
@@ -23,6 +26,7 @@ const cache = {
 
 export default function RootLayout() {
   const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const colorScheme = useColorScheme();
 
   if (!publishableKey) {
     throw new Error('Missing Clerk Publishable Key. Please set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in your .env file');
@@ -33,6 +37,7 @@ export default function RootLayout() {
       tokenCache={cache} // Use the secure cache
       publishableKey={publishableKey}
     >
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="tabs" />
       </Stack>
