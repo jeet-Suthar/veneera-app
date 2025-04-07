@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, Pressable, useColorScheme, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, Pressable, useColorScheme, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../utils/theme';
 import { Patient } from '../types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import { getCurrentUser, getPatientsForUser } from '../utils/patientStorage'; // Import helpers
+import { getCurrentUser, getPatientsForUser, deletePatient } from '../utils/patientStorage'; // Import helpers and deletePatient
 
 // Define extended patient type with additional fields
 type ExtendedPatient = Patient & {
@@ -67,6 +67,44 @@ export default function PatientDetailScreen() {
     loadPatientData();
   }, [patientId]);
 
+  // Function to handle patient deletion
+  const handleDeletePatient = async () => {
+    if (!patientId) return;
+    
+    Alert.alert(
+      "Delete Patient",
+      "Are you sure you want to delete this patient? This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const success = await deletePatient(patientId);
+              
+              if (success) {
+                Alert.alert("Success", "Patient deleted successfully");
+                router.back();
+              } else {
+                Alert.alert("Error", "Failed to delete patient");
+              }
+            } catch (error) {
+              console.error('Error deleting patient:', error);
+              Alert.alert("Error", "An unexpected error occurred");
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.loadingContainer, { backgroundColor: theme.background }]} edges={['top']}>
@@ -107,8 +145,8 @@ export default function PatientDetailScreen() {
           <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text} />
         </Pressable>
         <Text style={[styles.screenTitle, { color: theme.text }]}>Patient Details</Text>
-        <Pressable style={styles.actionButton}>
-          <MaterialCommunityIcons name="dots-vertical" size={24} color={theme.text} />
+        <Pressable style={styles.actionButton} onPress={handleDeletePatient}>
+          <MaterialCommunityIcons name="delete-outline" size={24} color={theme.error} />
         </Pressable>
       </View>
 

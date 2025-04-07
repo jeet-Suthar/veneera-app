@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors as ThemeColors } from '../utils/theme';
 import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // Define the structure of your theme colors
 interface Theme {
@@ -68,14 +69,34 @@ const AddPatientScreen: FC = () => {
     setPatientData(prev => ({ ...prev, [field]: value }));
   };
 
+  // Function to clear all fields
+  const handleReset = (): void => {
+    setPatientData({
+      name: '',
+      age: '',
+      phone: '',
+      email: '',
+      notes: '',
+    });
+    // Optional: Add a confirmation or feedback
+    // Alert.alert("Fields Cleared", "All input fields have been reset.");
+  };
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      {/* Header with Title and Reset Button */}
+      <View style={styles.headerContainer}>
+        <Text style={[styles.title, { color: theme.text }]}>New Patient</Text>
+        <Pressable onPress={handleReset} style={styles.resetButton}>
+          <MaterialCommunityIcons name="refresh" size={24} color={theme.primary} />
+        </Pressable>
+      </View>
+      
       <ScrollView
          style={styles.scrollView}
          contentContainerStyle={{ paddingBottom: 30 }}
          keyboardShouldPersistTaps="handled"
       >
-        <Text style={[styles.title, { color: theme.text }]}>New Patient</Text>
         <View style={styles.form}>
           {/* Input Fields */}
           <View style={styles.inputGroup}>
@@ -157,14 +178,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-    padding: 16,
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 10,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 24,
+  },
+  resetButton: {
+    padding: 8,
+  },
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 10,
   },
   form: {
     gap: 16,

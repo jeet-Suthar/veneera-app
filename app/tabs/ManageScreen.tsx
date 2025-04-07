@@ -113,8 +113,9 @@ export default function ManageScreen() {
     router.push('/tabs/AddPatientScreen');
   };
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+  // Header component for the FlatList
+  const ListHeaderComponent = () => (
+    <>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Manage Patients</Text>
         <Pressable 
@@ -196,7 +197,38 @@ export default function ManageScreen() {
           </Text>
         </Pressable>
       </View>
+    </>
+  );
 
+  // Empty state component
+  const ListEmptyComponent = () => (
+    <View style={styles.emptyState}>
+      {!currentUser ? (
+        <>
+          <MaterialCommunityIcons name="account-alert-outline" size={48} color={theme.textSecondary} />
+          <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+            Please login to view your patients
+          </Text>
+        </>
+      ) : (
+        <>
+          <MaterialCommunityIcons name="account-search-outline" size={48} color={theme.textSecondary} />
+          <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+            No patients found
+          </Text>
+          <Pressable 
+            style={[styles.emptyStateButton, { backgroundColor: theme.primary }]}
+            onPress={addNewPatient}
+          >
+            <Text style={{ color: 'white' }}>Add New Patient</Text>
+          </Pressable>
+        </>
+      )}
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
@@ -209,31 +241,8 @@ export default function ManageScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.patientList}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              {!currentUser ? (
-                <>
-                  <MaterialCommunityIcons name="account-alert-outline" size={48} color={theme.textSecondary} />
-                  <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                    Please login to view your patients
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <MaterialCommunityIcons name="account-search-outline" size={48} color={theme.textSecondary} />
-                  <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-                    No patients found
-                  </Text>
-                  <Pressable 
-                    style={[styles.emptyStateButton, { backgroundColor: theme.primary }]}
-                    onPress={addNewPatient}
-                  >
-                    <Text style={{ color: 'white' }}>Add New Patient</Text>
-                  </Pressable>
-                </>
-              )}
-            </View>
-          }
+          ListHeaderComponent={ListHeaderComponent}
+          ListEmptyComponent={ListEmptyComponent}
         />
       )}
     </SafeAreaView>
@@ -365,5 +374,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 20,
     marginTop: 10,
-  }
+  },
 }); 
