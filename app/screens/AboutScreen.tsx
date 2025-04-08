@@ -8,9 +8,10 @@ import {
   Image,
   Linking,
   TouchableOpacity,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { Colors } from '../utils/theme';
 import Constants from 'expo-constants'; // For app version
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,7 +20,7 @@ export default function AboutScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const appVersion = Constants.expoConfig?.version || '1.0.0'; // Get app version
-  const websiteUrl = 'https://veneera.example.com'; // Placeholder website
+  const websiteUrl = 'https://veenera.vercel.app/'; // Placeholder website
   const privacyUrl = 'https://veneera.example.com/privacy'; // Placeholder privacy policy
   const termsUrl = 'https://veneera.example.com/terms'; // Placeholder terms
 
@@ -31,6 +32,9 @@ export default function AboutScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'About Veneera', headerBackTitle: 'Settings' }} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
+      <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text} />
+        </Pressable>
         <View style={styles.logoContainer}>
           {/* Replace with your actual logo if available */}
           <MaterialCommunityIcons name="tooth-outline" size={80} color={theme.primary} />
@@ -47,14 +51,14 @@ export default function AboutScreen() {
             <MaterialCommunityIcons name="web" size={20} color={theme.primary} />
             <Text style={[styles.linkText, { color: theme.primary }]}>Visit our Website</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.linkItem} onPress={() => openLink(privacyUrl)}>
+          {/* <TouchableOpacity style={styles.linkItem} onPress={() => openLink(privacyUrl)}>
             <MaterialCommunityIcons name="shield-lock-outline" size={20} color={theme.primary} />
             <Text style={[styles.linkText, { color: theme.primary }]}>Privacy Policy</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.linkItem} onPress={() => openLink(termsUrl)}>
             <MaterialCommunityIcons name="file-document-outline" size={20} color={theme.primary} />
             <Text style={[styles.linkText, { color: theme.primary }]}>Terms of Service</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         <Text style={[styles.footerText, { color: theme.textSecondary }]}>
@@ -119,5 +123,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     marginTop: 20,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 26,
+    left: 26,
   },
 }); 

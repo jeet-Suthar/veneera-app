@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   useColorScheme,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -103,7 +104,7 @@ export default function PremiumFeaturesScreen() {
       price: '$19 / month', // Placeholder price
       highlight: true,
       features: [
-        { text: 'Manage up to 150 Patients', included: true },
+        { text: 'Manage up to 70 Patients', included: true },
         { text: '50 AI Visualizations / month', included: true },
         { text: 'Enhanced Storage Capacity', included: true },
         { text: 'Email Support', included: true },
@@ -135,21 +136,107 @@ export default function PremiumFeaturesScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Subscription Plans', headerBackTitle: 'Settings' }} />
+      <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text} />
+        </Pressable>     
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Unlock More Features</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Veneera App</Text>
         <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-          Choose the plan that best fits your practice needs.
+          Your Digital Dental Practice Assistant
         </Text>
 
-        <View style={styles.plansContainer}>
-          {plans.map((plan, index) => (
-            <PlanCard
-              key={index}
-              plan={plan}
-              theme={theme}
-              onSelectPlan={() => handleSelectPlan(plan.name)}
-            />
-          ))}
+        {/* Beta Phase Notice */}
+        <View style={[styles.betaNotice, { backgroundColor: theme.surface }]}>
+          <MaterialCommunityIcons name="beta" size={24} color={theme.primary} style={styles.betaIcon} />
+          <View style={styles.betaTextContainer}>
+            <Text style={[styles.betaTitle, { color: theme.text }]}>Beta Phase Notice</Text>
+            <Text style={[styles.betaDescription, { color: theme.textSecondary }]}>
+              Our app is currently in beta phase. There are no subscriptions available at this time. You may encounter some bugs or issues - we appreciate your patience and feedback as we work towards our full launch.
+            </Text>
+          </View>
+        </View>
+
+        {/* Current Features Section */}
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons name="star" size={20} color={theme.primary} style={styles.sectionIcon} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Current Features</Text>
+        </View>
+
+        <View style={[styles.featuresCard, { backgroundColor: theme.surface }]}>
+          <FeatureItem 
+            text="Patient Management - Add, view, and manage patient records" 
+            theme={theme} 
+            included={true} 
+          />
+          <FeatureItem 
+            text="AI-Powered Veneer Visualization - Generate realistic veneer previews" 
+            theme={theme} 
+            included={true} 
+          />
+          <FeatureItem 
+            text="Secure Data Storage - Patient information is stored securely" 
+            theme={theme} 
+            included={true} 
+          />
+          <FeatureItem 
+            text="Appointment Tracking - Schedule and manage patient appointments" 
+            theme={theme} 
+            included={true} 
+          />
+          <FeatureItem 
+            text="User Authentication - Secure login and account management" 
+            theme={theme} 
+            included={true} 
+          />
+        </View>
+
+        {/* Coming Soon Section */}
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons name="rocket-launch" size={20} color={theme.primary} style={styles.sectionIcon} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Coming Soon</Text>
+        </View>
+
+        <View style={[styles.featuresCard, { backgroundColor: theme.surface }]}>
+          <FeatureItem 
+            text="Advanced Analytics Dashboard" 
+            theme={theme} 
+            included={false} 
+          />
+          <FeatureItem 
+            text="Team Collaboration Features" 
+            theme={theme} 
+            included={false} 
+          />
+          <FeatureItem 
+            text="Enhanced Storage with Automatic Backups" 
+            theme={theme} 
+            included={false} 
+          />
+          <FeatureItem 
+            text="Priority Support" 
+            theme={theme} 
+            included={false} 
+          />
+          <FeatureItem 
+            text="Customizable Treatment Plans" 
+            theme={theme} 
+            included={false} 
+          />
+        </View>
+
+        {/* Feedback Section */}
+        <View style={[styles.feedbackCard, { backgroundColor: theme.primary }]}>
+          <MaterialCommunityIcons name="message-text-outline" size={24} color="#fff" style={styles.feedbackIcon} />
+          <Text style={styles.feedbackTitle}>Help Us Improve</Text>
+          <Text style={styles.feedbackText}>
+            We're constantly working to enhance your experience. Your feedback is invaluable to us as we develop new features and improvements.
+          </Text>
+          <TouchableOpacity
+            style={[styles.feedbackButton, { backgroundColor: '#fff' }]}
+            onPress={() => router.push('/screens/ContactSupportScreen')}
+          >
+            <Text style={[styles.feedbackButtonText, { color: theme.primary }]}>Send Feedback</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -234,6 +321,99 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   ctaText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  betaNotice: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 133, 133, 0.64)',
+  },
+  betaIcon: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  betaTextContainer: {
+    flex: 1,
+    
+  },
+  betaTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  betaDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 26,
+    left: 26,
+    zIndex: 1000,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  sectionIcon: {
+    marginRight: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  featuresCard: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  feedbackCard: {
+    borderRadius: 16,
+    padding: 24,
+    marginTop: 16,
+    marginBottom: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  feedbackIcon: {
+    marginBottom: 12,
+  },
+  feedbackTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  feedbackText: {
+    fontSize: 15,
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  feedbackButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 30,
+    alignItems: 'center',
+  },
+  feedbackButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
   },

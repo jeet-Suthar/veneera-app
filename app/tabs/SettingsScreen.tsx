@@ -38,12 +38,12 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.content}>
-        <View style={styles.sectionHeader}>
+        {/* <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Preferences</Text>
         </View>
         <View style={[styles.settingGroup, { backgroundColor: theme.surface }]}>
           {renderSettingItem('theme-light-dark', 'Dark Mode', colorScheme === 'dark')}
-        </View>
+        </View> */}
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Subscription</Text>

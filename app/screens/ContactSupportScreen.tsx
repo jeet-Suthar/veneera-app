@@ -9,6 +9,7 @@ import {
   Platform,
   TextInput,
   ScrollView,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -19,8 +20,8 @@ export default function ContactSupportScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const router = useRouter();
-  const supportEmail = 'support@veneera.example.com'; // Placeholder email
-  const supportPhone = '1-800-555-VENE'; // Placeholder phone
+  const supportEmail = 'Jitendrasutharwork@gmail.com'; // Placeholder email
+  const supportPhone = '+91 8432737144'; // Placeholder phone
 
   const handleEmailPress = () => {
     Linking.openURL(`mailto:${supportEmail}?subject=Veneera App Support Request`);
@@ -33,6 +34,9 @@ export default function ContactSupportScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Contact Support', headerBackTitle: 'Settings' }} />
+      <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text} />
+        </Pressable>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.iconHeaderContainer}>
           <MaterialCommunityIcons name="headset" size={60} color={theme.primary} />
@@ -68,7 +72,7 @@ export default function ContactSupportScreen() {
         </TouchableOpacity>
 
         {/* Quick Message Form (Optional) */}
-        <Text style={[styles.formTitle, { color: theme.text }]}>Or Send a Quick Message</Text>
+        {/* <Text style={[styles.formTitle, { color: theme.text }]}>Or Send a Quick Message</Text>
         <TextInput
           style={[styles.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
           placeholder="Your Name (Optional)"
@@ -83,7 +87,7 @@ export default function ContactSupportScreen() {
         />
         <TouchableOpacity style={[styles.submitButton, { backgroundColor: theme.primary }]}>
           <Text style={[styles.submitButtonText, { color: theme.text }]}>Send Message</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
       </ScrollView>
     </SafeAreaView>
@@ -160,5 +164,11 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 26,
+    left: 26,
+    zIndex: 1000,
   },
 }); 

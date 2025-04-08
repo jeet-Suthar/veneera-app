@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   useColorScheme,
   SafeAreaView,
   Animated,
+  Easing,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, Stack } from 'expo-router';
@@ -19,96 +20,183 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
-// Interface for Slide Props (Optional but good practice)
+// Custom Fonts (Example - you might need to load these)
+const Fonts = {
+  Bold: 'YourApp-Bold', // Replace with actual bold font name if loaded
+  Regular: 'YourApp-Regular', // Replace with actual regular font name if loaded
+};
+
+// Interface for Slide Props
 interface SlideProps {
-  theme: typeof Colors.light | typeof Colors.dark;
-  // Add any other common props slides might need
+  theme: typeof Colors.light | typeof Colors.light;
+  isActive: boolean;
 }
 
+// --- Animated Text Component ---
+const AnimatedText = ({ children, style, isActive, delay = 0 }: { children: React.ReactNode; style?: any; isActive: boolean; delay?: number }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const translateYAnim = useRef(new Animated.Value(20)).current; // Start slightly lower
+
+  useEffect(() => {
+    if (isActive) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 600,
+          delay,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateYAnim, {
+          toValue: 0,
+          duration: 600,
+          delay,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Reset animation values when slide is inactive
+      fadeAnim.setValue(0);
+      translateYAnim.setValue(20);
+    }
+  }, [isActive, fadeAnim, translateYAnim, delay]);
+
+  return (
+    <Animated.Text style={[style, { opacity: fadeAnim, transform: [{ translateY: translateYAnim }] }]}>
+      {children}
+    </Animated.Text>
+  );
+};
+
+// --- Animated Image Container (Replaces AnimatedSvg) ---
+const AnimatedImageContainer = ({ source, style, isActive, delay = 0 }: { source: any; style?: any; isActive: boolean; delay?: number }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  useEffect(() => {
+    if (isActive) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 800,
+          delay,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 800,
+          delay,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.9);
+    }
+  }, [isActive, fadeAnim, scaleAnim, delay]);
+
+  return (
+    <Animated.View style={[style, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+      {/* Use standard Image component with require */}
+      <Image source={source} style={styles.illustrationImageStyle} resizeMode="contain" />
+    </Animated.View>
+  );
+};
+
 // --- Slide 1 Component ---
-const WelcomeSlide: React.FC<SlideProps> = ({ theme }) => (
+const WelcomeSlide: React.FC<SlideProps> = ({ theme, isActive }) => (
   <View style={styles.slideContainer}>
-    <MaterialCommunityIcons
-      name="medical-bag"
-      size={140} // Larger icon
-      color={theme.primary}
-      style={styles.slideIcon}
+    <AnimatedImageContainer
+      source={require('../assets/images/illustrations/firstscreen.svg')}
+      style={styles.illustrationContainerStyle}
+      isActive={isActive}
     />
-    <Text style={[styles.slideTitle, { color: theme.text }]}>Welcome to Veneera</Text>
-    <Text style={[styles.slideDescription, { color: theme.textSecondary }]}>
-      The modern healthcare platform that transforms patient care and dental practice management.
-    </Text>
+    <AnimatedText style={[styles.slideTitle, { color: theme.text }]} isActive={isActive} delay={100}>
+      Welcome to Veneera
+    </AnimatedText>
+    <AnimatedText style={[styles.slideDescription, { color: theme.textSecondary }]} isActive={isActive} delay={200}>
+      Modern healthcare platform transforming patient care.
+    </AnimatedText>
   </View>
 );
 
 // --- Slide 2 Component ---
-const HowItWorksSlide: React.FC<SlideProps> = ({ theme }) => (
+const HowItWorksSlide: React.FC<SlideProps> = ({ theme, isActive }) => (
   <View style={styles.slideContainer}>
-    <MaterialCommunityIcons
-      name="clipboard-pulse-outline" // Outline variant
-      size={120}
-      color={theme.primary}
-      style={styles.slideIcon}
+    <AnimatedImageContainer
+      source={require('../assets/images/illustrations/howitworks.svg')}
+      style={styles.illustrationContainerStyle}
+      isActive={isActive}
     />
-    <Text style={[styles.slideTitle, { color: theme.text }]}>How It Works</Text>
-    <Text style={[styles.slideDescription, { color: theme.textSecondary }]}>
-        Upload your patient's images and get a AI generated Image of the perfect teeth.
-    </Text>
+    <AnimatedText style={[styles.slideTitle, { color: theme.text }]} isActive={isActive} delay={100}>
+      How It Works
+    </AnimatedText>
+    <AnimatedText style={[styles.slideDescription, { color: theme.textSecondary }]} isActive={isActive} delay={200}>
+      Upload patient images, get AI-powered veneer visualizations instantly.
+    </AnimatedText>
   </View>
 );
 
 // --- Slide 3 Component ---
-const FeaturesSlide: React.FC<SlideProps> = ({ theme }) => (
+const FeaturesSlide: React.FC<SlideProps> = ({ theme, isActive }) => (
   <View style={styles.slideContainer}>
-    <MaterialCommunityIcons
-      name="feature-search-outline" // Outline variant
-      size={120}
-      color={theme.primary}
-      style={styles.slideIcon}
+    <AnimatedImageContainer
+      source={require('../assets/images/illustrations/features.svg')}
+      style={styles.illustrationContainerStyle}
+      isActive={isActive}
     />
-    <Text style={[styles.slideTitle, { color: theme.text }]}>Powerful Features</Text>
-    <View style={styles.featureList}>
+    <AnimatedText style={[styles.slideTitle, { color: theme.text }]} isActive={isActive} delay={100}>
+      Powerful Features
+    </AnimatedText>
+    <Animated.View style={[styles.featureListContainer, { opacity: isActive ? 1 : 0 }]}>
+      {/* Add Animated.View wrapper for list items if desired */}
       <View style={styles.featureItem}>
         <MaterialCommunityIcons name="image-filter-center-focus" size={24} color={theme.primary} />
-        <Text style={[styles.featureText, { color: theme.textSecondary }]}> Generate AI visualizations</Text>
+        <AnimatedText style={[styles.featureText, { color: theme.textSecondary }]} isActive={isActive} delay={200}>Generate AI visualizations</AnimatedText>
       </View>
       <View style={styles.featureItem}>
         <MaterialCommunityIcons name="folder-key-outline" size={24} color={theme.primary} />
-        <Text style={[styles.featureText, { color: theme.textSecondary }]}> Securely store records</Text>
+        <AnimatedText style={[styles.featureText, { color: theme.textSecondary }]} isActive={isActive} delay={300}>Securely store records</AnimatedText>
       </View>
       <View style={styles.featureItem}>
         <MaterialCommunityIcons name="chart-line" size={24} color={theme.primary} />
-        <Text style={[styles.featureText, { color: theme.textSecondary }]}> Increase patient engagement</Text>
+        <AnimatedText style={[styles.featureText, { color: theme.textSecondary }]} isActive={isActive} delay={400}>Increase patient engagement</AnimatedText>
       </View>
+      {/* Beta notice can remain static or be animated */}
       <View style={styles.betaContainer}>
-        <View style={[styles.featureItem, styles.beta]}>
-          <MaterialCommunityIcons name="beta" size={24} color="rgb(255, 131, 131)" />
-          <Text style={[styles.featureText ,    styles.betaText, { color: theme.textSecondary }]}> Beta version - More features coming soon! ✨</Text>
-        </View>
-    </View>
-
-    </View>
+          <View style={[styles.featureItem, styles.beta]}>
+            <MaterialCommunityIcons name="beta" size={24} color="rgb(255, 131, 131)" />
+            <Text style={[styles.featureText , styles.betaText, { color: theme.textSecondary }]}> Beta version - More features coming soon! ✨</Text>
+          </View>
+      </View>
+    </Animated.View>
   </View>
 );
 
 // --- Slide 4 Component ---
-const GetStartedSlide: React.FC<SlideProps & { onGetStarted: () => void }> = ({ theme, onGetStarted }) => (
+const GetStartedSlide: React.FC<SlideProps & { onGetStarted: () => void }> = ({ theme, onGetStarted, isActive }) => (
   <View style={styles.slideContainer}>
-    <MaterialCommunityIcons
-      name="rocket-launch-outline" // Outline variant
-      size={140} // Larger icon
-      color={theme.primary}
-      style={styles.slideIcon}
+    <AnimatedImageContainer
+        // Use a placeholder or different illustration if needed
+        source={require('../assets/images/illustrations/getstarted.svg')} // Example: Reusing features illustration
+        style={styles.illustrationContainerStyle}
+        isActive={isActive}
     />
-    <Text style={[styles.slideTitle, { color: theme.text }]}>Ready to Transform Your Practice?</Text>
-    <Text style={[styles.slideDescription, { color: theme.textSecondary }]}>
-      Join thousands of healthcare providers enhancing their patient care experience.
-    </Text>
+    <AnimatedText style={[styles.slideTitle, { color: theme.text }]} isActive={isActive} delay={100}>
+        Ready to Transform Your Practice?
+    </AnimatedText>
+    <AnimatedText style={[styles.slideDescription, { color: theme.textSecondary }]} isActive={isActive} delay={200}>
+        Join healthcare providers enhancing patient care.
+    </AnimatedText>
     <TouchableOpacity
       style={[styles.getStartedButton, { backgroundColor: theme.primary }]}
       onPress={onGetStarted}
     >
-      <Text style={[styles.getStartedText, { color: theme.text }]}>Get Started</Text>
+      {/* Add Animated.Text if desired */}
+      <Text style={[styles.getStartedText, { color: 'white' }]}>Get Started</Text>
     </TouchableOpacity>
   </View>
 );
@@ -119,7 +207,7 @@ export default function LandingScreen() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const scrollX = useRef(new Animated.Value(0)).current; // For potential animations
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   // Mark that user has seen landing screen and navigate to sign up
   const navigateToSignUp = async () => {
@@ -132,36 +220,34 @@ export default function LandingScreen() {
     }
   };
 
-  // Handle scroll event to update page indicator and animated value
   const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { x: scrollX } } }],
     {
       useNativeDriver: false,
       listener: (event: any) => {
-        const offsetX = event.nativeEvent.contentOffset.x;
-        const page = Math.round(offsetX / width);
-        setCurrentPage(page);
+        const page = Math.round(event.nativeEvent.contentOffset.x / width);
+        if (page !== currentPage) {
+           setCurrentPage(page);
+        }
       },
     }
   );
 
-  // Navigate to specific page
   const scrollToPage = (index: number) => {
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollTo({ x: width * index, animated: true });
     }
   };
 
-  // Next slide function
   const goToNextSlide = () => {
-    if (currentPage < 3) {
-      scrollToPage(currentPage + 1);
+    const nextPageIndex = currentPage + 1;
+    if (nextPageIndex < 4) { // Total 4 slides (0, 1, 2, 3)
+      scrollToPage(nextPageIndex);
     } else {
       navigateToSignUp();
     }
   };
 
-  // Skip function - mark as seen and go straight to sign up
   const skipToSignUp = async () => {
     await navigateToSignUp();
   };
@@ -169,85 +255,76 @@ export default function LandingScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.surface }]}>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-        
-        {/* Skip button (visible on first 3 slides) */}
-        {currentPage < 3 && (
-          <TouchableOpacity 
-            style={styles.skipButton} 
+
+        {/* Show Skip button only on pages 1 and 2 */}
+        {currentPage > 0 && currentPage < 3 && (
+          <TouchableOpacity
+            style={styles.skipButton}
             onPress={skipToSignUp}
           >
             <Text style={[styles.skipText, { color: theme.primary }]}>Skip</Text>
           </TouchableOpacity>
         )}
 
-        {/* Carousel */}
         <ScrollView
           ref={scrollViewRef}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
-          onScroll={handleScroll} // Use Animated event handler
-          scrollEventThrottle={16}
+          onScroll={handleScroll}
+          scrollEventThrottle={16} // Important for smooth scroll tracking
           style={styles.scrollView}
+          contentContainerStyle={{ width: width * 4 }} // Ensure content width matches total slides
         >
-          {/* Slide 1 */}
+          {/* Pass isActive prop based on currentPage */}
           <View style={styles.slideWrapper}>
-            <WelcomeSlide theme={theme} />
+            <WelcomeSlide theme={theme} isActive={currentPage === 0} />
           </View>
-          
-          {/* Slide 2 */}
           <View style={styles.slideWrapper}>
-             <HowItWorksSlide theme={theme} />
+             <HowItWorksSlide theme={theme} isActive={currentPage === 1} />
           </View>
-          
-          {/* Slide 3 */}
           <View style={styles.slideWrapper}>
-            <FeaturesSlide theme={theme} />
+            <FeaturesSlide theme={theme} isActive={currentPage === 2} />
           </View>
-          
-          {/* Slide 4 */}
           <View style={styles.slideWrapper}>
-            <GetStartedSlide theme={theme} onGetStarted={navigateToSignUp} />
+            <GetStartedSlide theme={theme} onGetStarted={navigateToSignUp} isActive={currentPage === 3} />
           </View>
         </ScrollView>
 
-        {/* Page indicators */}
         <View style={styles.paginationContainer}>
-          {[0, 1, 2, 3].map((index) => { // Use index directly
+          {[0, 1, 2, 3].map((index) => {
             const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
             const dotWidth = scrollX.interpolate({
               inputRange,
-              outputRange: [10, 20, 10], // Expand current dot
+              outputRange: [10, 25, 10], // Make active dot wider
               extrapolate: 'clamp',
             });
             const opacity = scrollX.interpolate({
               inputRange,
-              outputRange: [0.3, 1, 0.3], // Fade non-current dots
+              outputRange: [0.4, 1, 0.4],
               extrapolate: 'clamp',
             });
 
             return (
-              <Animated.View // Use Animated.View for indicator
+              <Animated.View
                 key={index}
                 style={[
                   styles.paginationDot,
-                  { width: dotWidth, opacity },
-                  { backgroundColor: theme.primary } // Use primary color
+                  { width: dotWidth, opacity, backgroundColor: theme.primary }
                 ]}
               />
             );
           })}
         </View>
 
-        {/* Next button (not on last slide) */}
         {currentPage < 3 && (
           <TouchableOpacity
             style={[styles.nextButton, { backgroundColor: theme.primary }]}
             onPress={goToNextSlide}
           >
-            <MaterialCommunityIcons name="arrow-right" size={24} color={theme.text} />
+            <MaterialCommunityIcons name="arrow-right" size={28} color={'white'} />
           </TouchableOpacity>
         )}
       </SafeAreaView>
@@ -255,7 +332,7 @@ export default function LandingScreen() {
   );
 }
 
-// Updated Styles
+// --- Updated Styles ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -263,121 +340,131 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  slideWrapper: { // Wrapper for each slide component to ensure width
+  slideWrapper: {
     width: width,
+    height: '100%', // Ensure wrapper takes full height for alignment
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden', // Prevent content overflow during animations
   },
-  slideContainer: { // Inner container for slide content
-    width: '100%',
-    height: height * 0.75, // Adjust height as needed
-    justifyContent: 'center',
+  slideContainer: {
+    width: '90%', // Use percentage for responsiveness
+    flex: 1, // Allow container to grow and center content vertically
+    justifyContent: 'center', // Center content vertically
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 20, // Horizontal padding within the slide
+    paddingBottom: 150, // Space above pagination/button
   },
-  slideIcon: {
+  illustrationContainerStyle: {
+    width: width * 0.7,
+    height: height * 0.35,
     marginBottom: 40,
-    opacity: 0.9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  illustrationImageStyle: {
+    width: '100%',
+    height: '100%',
   },
   slideTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 28, // Slightly larger
+    fontWeight: 'bold', // Use font weight instead of custom font for simplicity
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 15, // Adjusted spacing
+    letterSpacing: 0.5,
   },
   slideDescription: {
-    fontSize: 20,
+    fontSize: 18, // Slightly smaller for better balance
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 26, // Increased line height for readability
+    opacity: 0.85, // Slightly less prominent than title
   },
-  featureList: {
-    marginTop: 20,
-    alignItems: 'flex-start', // Align items to the left
+  featureListContainer: { // Added container for feature list animations
+      width: '100%',
+      marginTop: 30,
+      alignItems: 'flex-start',
   },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 18, // Increased spacing
   },
   featureText: {
-    fontSize: 16,
-    marginLeft: 10, // Space between icon and text
+    fontSize: 17, // Slightly larger feature text
+    marginLeft: 12,
     lineHeight: 24,
   },
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'absolute', // Position dots over the scrollview
-    bottom: 100, // Adjust position as needed
+    position: 'absolute',
+    bottom: 100, // Keep same position
     left: 0,
     right: 0,
   },
   paginationDot: {
     height: 10,
     borderRadius: 5,
-    marginHorizontal: 8,
+    marginHorizontal: 5, // Reduced horizontal margin
   },
   skipButton: {
     position: 'absolute',
-    top: 60, // Adjust based on SafeAreaView
+    top: 55, // Adjusted slightly
     right: 25,
-    zIndex: 1,
-    padding: 5,
+    zIndex: 10, // Ensure it's above other elements
+    padding: 10, // Larger touch area
   },
   skipText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600', // Bolder skip text
   },
   nextButton: {
     position: 'absolute',
-    bottom: 40, // Adjust position
+    bottom: 35, // Adjusted slightly
     right: 30,
     width: 60,
     height: 60,
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    // Removed shadow for a flatter design, add back if desired
+    elevation: 4, // Keep some elevation for Android
   },
   getStartedButton: {
-    marginTop: 40,
-    paddingVertical: 18,
-    paddingHorizontal: 50,
-    borderRadius: 30, // More rounded
+    marginTop: 50, // Increased space above button
+    paddingVertical: 16, // Slightly smaller padding
+    paddingHorizontal: 60, // Wider button
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    elevation: 4,
   },
   getStartedText: {
     fontSize: 18,
     fontWeight: 'bold',
+    letterSpacing: 0.5,
+    color: 'white',
+  },
+  betaContainer: {
+    width: '100%', // Ensure beta container takes full width
+    alignItems: 'center', // Center the beta box
+    marginTop: 20,
   },
   beta: {
-    marginTop: 20,
-    // backgroundColor: "rgb(255, 255, 255)",
     borderWidth: 1,
     borderColor: "rgb(160, 160, 160)",
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 8, // Adjusted padding
     borderRadius: 10,
-    color: "red",
-  },
-  betaContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 20,
+    flexDirection: 'row', // Ensure icon and text are in a row
+    alignItems: 'center', // Align icon and text vertically
+    marginBottom: 0, // Reset margin from featureItem
   },
   betaText: {
-    color: "red",
-    fontSize: 16,
+    color: "red", // Keep red color
+    fontSize: 15, // Adjusted size
+    marginLeft: 8, // Space between beta icon and text
+    fontWeight: '500',
   },
 }); 
