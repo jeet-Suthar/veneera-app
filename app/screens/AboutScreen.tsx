@@ -75,6 +75,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
+    paddingTop: 46, 
     alignItems: 'center', // Center content
   },
   logoContainer: {
@@ -126,7 +127,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 26,
+    top: 46,
     left: 26,
   },
 }); 

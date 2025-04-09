@@ -246,6 +246,7 @@ export default function PremiumFeaturesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingTop: 24,
   },
   scrollContent: {
     padding: 24,
@@ -352,7 +353,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 26,
+    top: 46,
     left: 26,
     zIndex: 1000,
   },

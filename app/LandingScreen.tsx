@@ -18,6 +18,12 @@ import { Colors } from './utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Import SVGs as components
+import FirstScreenIllustration from '../assets/images/illustrations/firstscreen.svg';
+import HowItWorksIllustration from '../assets/images/illustrations/howitworks.svg';
+import FeaturesIllustration from '../assets/images/illustrations/features.svg';
+import GetStartedIllustration from '../assets/images/illustrations/getstarted.svg';
+
 const { width, height } = Dimensions.get('window');
 
 // Custom Fonts (Example - you might need to load these)
@@ -28,7 +34,7 @@ const Fonts = {
 
 // Interface for Slide Props
 interface SlideProps {
-  theme: typeof Colors.light | typeof Colors.light;
+  theme: typeof Colors.light | typeof Colors.dark;
   isActive: boolean;
 }
 
@@ -69,8 +75,8 @@ const AnimatedText = ({ children, style, isActive, delay = 0 }: { children: Reac
   );
 };
 
-// --- Animated Image Container (Replaces AnimatedSvg) ---
-const AnimatedImageContainer = ({ source, style, isActive, delay = 0 }: { source: any; style?: any; isActive: boolean; delay?: number }) => {
+// --- Animated Image Container (No changes needed here) ---
+const AnimatedImageContainer = ({ source: SvgComponent, style, isActive, delay = 0 }: { source: React.FC<any>; style?: any; isActive: boolean; delay?: number }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
@@ -100,8 +106,8 @@ const AnimatedImageContainer = ({ source, style, isActive, delay = 0 }: { source
 
   return (
     <Animated.View style={[style, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
-      {/* Use standard Image component with require */}
-      <Image source={source} style={styles.illustrationImageStyle} resizeMode="contain" />
+      {/* Use the SVG component directly */}
+      <SvgComponent width="100%" height="100%" />
     </Animated.View>
   );
 };
@@ -110,10 +116,11 @@ const AnimatedImageContainer = ({ source, style, isActive, delay = 0 }: { source
 const WelcomeSlide: React.FC<SlideProps> = ({ theme, isActive }) => (
   <View style={styles.slideContainer}>
     <AnimatedImageContainer
-      source={require('../assets/images/illustrations/firstscreen.svg')}
+      source={FirstScreenIllustration} // Pass imported component
       style={styles.illustrationContainerStyle}
       isActive={isActive}
     />
+   
     <AnimatedText style={[styles.slideTitle, { color: theme.text }]} isActive={isActive} delay={100}>
       Welcome to Veneera
     </AnimatedText>
@@ -127,7 +134,7 @@ const WelcomeSlide: React.FC<SlideProps> = ({ theme, isActive }) => (
 const HowItWorksSlide: React.FC<SlideProps> = ({ theme, isActive }) => (
   <View style={styles.slideContainer}>
     <AnimatedImageContainer
-      source={require('../assets/images/illustrations/howitworks.svg')}
+      source={HowItWorksIllustration} // Pass imported component
       style={styles.illustrationContainerStyle}
       isActive={isActive}
     />
@@ -144,7 +151,7 @@ const HowItWorksSlide: React.FC<SlideProps> = ({ theme, isActive }) => (
 const FeaturesSlide: React.FC<SlideProps> = ({ theme, isActive }) => (
   <View style={styles.slideContainer}>
     <AnimatedImageContainer
-      source={require('../assets/images/illustrations/features.svg')}
+      source={FeaturesIllustration} // Pass imported component
       style={styles.illustrationContainerStyle}
       isActive={isActive}
     />
@@ -180,8 +187,7 @@ const FeaturesSlide: React.FC<SlideProps> = ({ theme, isActive }) => (
 const GetStartedSlide: React.FC<SlideProps & { onGetStarted: () => void }> = ({ theme, onGetStarted, isActive }) => (
   <View style={styles.slideContainer}>
     <AnimatedImageContainer
-        // Use a placeholder or different illustration if needed
-        source={require('../assets/images/illustrations/getstarted.svg')} // Example: Reusing features illustration
+        source={GetStartedIllustration} // Pass imported component
         style={styles.illustrationContainerStyle}
         isActive={isActive}
     />

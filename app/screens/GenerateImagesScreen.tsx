@@ -20,7 +20,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import ReactNativeZoomableView from '@dudigital/react-native-zoomable-view/src/ReactNativeZoomableView';
+
+// remove this library for now because it's not working
+// import ReactNativeZoomableView from '@dudigital/react-native-zoomable-view/src/ReactNativeZoomableView';
+
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
@@ -593,7 +596,7 @@ export default function GenerateImagesScreen() {
               style={styles.regenerateIconButton}
               onPress={() => regenerateImage(index)}
             >
-              <MaterialIcons name="refresh" size={18} color="#fff" />
+              <MaterialIcons name="refresh" size={18} color="#fff" style={styles.regenerateIcon} />
             </TouchableOpacity>
           </View>
         ) : (
@@ -730,19 +733,12 @@ export default function GenerateImagesScreen() {
               viewabilityConfig={viewabilityConfig}
               renderItem={({ item, index }) => (
                 <View style={styles.modalPage}>
-                  <ReactNativeZoomableView
-                    maxZoom={2.5}
-                    minZoom={1}
-                    initialZoom={1}
-                    bindToBorders={true}
-                    style={styles.zoomableView}
-                  >
+                  
                     <Image
                       source={{ uri: item, cache: 'reload' }}
                       style={styles.modalImage}
                       resizeMode="contain"
                     />
-                  </ReactNativeZoomableView>
                 </View>
               )}
             />
@@ -1034,6 +1030,9 @@ const styles = StyleSheet.create({
     padding: 6,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderRadius: 15,
+  },
+  regenerateIcon: {
+    color: 'white',
   },
   retryButton: {
     marginTop: 12,

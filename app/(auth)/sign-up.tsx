@@ -8,9 +8,12 @@ import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { setCurrentUser } from '../utils/patientStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Ensure WebBrowser closes properly
 WebBrowser.maybeCompleteAuthSession();
+
+const DEMO_VIEWED_KEY = '@demo_viewed';
 
 export default function SignUpScreen() {
   const colorScheme = useColorScheme();
@@ -27,6 +30,20 @@ export default function SignUpScreen() {
   const [code, setCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
+  const [demoViewed, setDemoViewed] = React.useState(false);
+
+  // Check if demo has been viewed
+  React.useEffect(() => {
+    const checkDemoViewed = async () => {
+      try {
+        const viewed = await AsyncStorage.getItem(DEMO_VIEWED_KEY);
+        setDemoViewed(viewed === 'true');
+      } catch (error) {
+        console.error('Error checking demo viewed status:', error);
+      }
+    };
+    checkDemoViewed();
+  }, []);
 
   // --- OAuth Flow Hooks ---
   const { startOAuthFlow: startGoogleOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
@@ -40,6 +57,10 @@ export default function SignUpScreen() {
     } catch (error) {
       console.error('Error saving user to SecureStore:', error);
     }
+  };
+
+  const handleTryDemo = () => {
+    router.push('/demo-generate');
   };
 
   // --- OAuth Handler ---
@@ -142,7 +163,7 @@ export default function SignUpScreen() {
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Text style={[styles.title, { color: theme.text }]}>Verify your email</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: theme.textSecondary, color: theme.text }]}
+          style={[styles.input, { backgroundColor: theme.surface, color: theme.text }]}
           value={code}
           placeholder="Enter verification code..."
           onChangeText={setCode}
@@ -168,19 +189,21 @@ export default function SignUpScreen() {
         value={emailAddress}
         placeholder="Email address"
         onChangeText={setEmailAddress}
-        style={[styles.input, { backgroundColor: theme.textSecondary}]}
+        placeholderTextColor={theme.textSecondary}
+        style={[styles.input, { backgroundColor: theme.surface, color: theme.text }]}
         keyboardType="email-address"
         editable={!loading}
       />
 
       {/* Password Input with Toggle */}
-      <View style={[styles.passwordContainer, { backgroundColor: theme.textSecondary }]}>
+      <View style={[styles.passwordContainer, { backgroundColor: theme.surface }]}>
         <TextInput
           value={password}
           placeholder="Password"
           secureTextEntry={!showPassword}
           onChangeText={setPassword}
-          style={[styles.passwordInput, {  }]}
+          placeholderTextColor={theme.textSecondary}
+          style={[styles.passwordInput, { backgroundColor: theme.surface, color: theme.text }]}
           editable={!loading}
         />
         <TouchableOpacity
@@ -190,7 +213,7 @@ export default function SignUpScreen() {
           <MaterialCommunityIcons
             name={showPassword ? "eye-off" : "eye"}
             size={24}
-            color={theme.background}
+            color={theme.text}
           />
         </TouchableOpacity>
       </View>
@@ -199,6 +222,18 @@ export default function SignUpScreen() {
       <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }, loading && styles.buttonDisabled]} onPress={onSignUpPress} disabled={loading}>
         <Text style={[styles.buttonText, { color: theme.text }]}>{loading ? 'Signing Up...' : 'Sign Up'}</Text>
       </TouchableOpacity>
+
+      {/* Demo Button (conditional based on previous usage) */}
+      {!demoViewed && (
+        <TouchableOpacity 
+          style={[styles.demoButton, { borderColor: theme.primary }]} 
+          onPress={handleTryDemo}
+          disabled={loading}
+        >
+          <MaterialCommunityIcons name="image-filter-hdr" size={20} color={theme.primary} />
+          <Text style={[styles.demoButtonText, { color: theme.primary }]}>Try Our AI Demo First</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Separator */}
       <Text style={[styles.separator, { color: theme.textSecondary }]}>or</Text>
@@ -326,5 +361,19 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontWeight: 'bold',
+  },
+  demoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginTop: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+  },
+  demoButtonText: {
+    fontWeight: '600',
+    fontSize: 16,
   },
 });

@@ -166,13 +166,14 @@ export default function HomeScreen() {
               Dr. {currentUserEmail?.split('@')[0] || 'User'}
             </Text>
           </View>
-          <Pressable
+          {/* will do this in update 2 */}
+          {/* <Pressable
             onPress={toggleOverlay}
             style={[styles.notificationBadge, { backgroundColor: theme.surface }]}
           >
             <MaterialCommunityIcons name="bell-outline" size={22} color={theme.primary} />
             <View style={[styles.badge, { backgroundColor: theme.error }]} />
-          </Pressable>
+          </Pressable> */}
         </View>
 
         <View style={styles.statsRow}>
