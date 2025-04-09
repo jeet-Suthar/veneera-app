@@ -1,16 +1,16 @@
 {
   "expo": {
     "name": "teethsi",
-    "slug": "veneera_app",
+    "slug": "teethsi",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icons/Dark.png",
-    "scheme": "myapp",
+    "scheme": "teethsi",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.veneera.indrajeet",
+      "bundleIdentifier": "app.teethsi.indrajeet",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -20,7 +20,7 @@
         "foregroundImage": "./assets/images/icons/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.indrajeet_dev.veneera_app"
+      "package": "com.indrajeet_dev.teethsi"
     },
     "web": {
       "bundler": "metro",

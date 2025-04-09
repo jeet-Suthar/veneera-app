@@ -154,3 +154,11 @@ export const savePatientsForUser = async (userId: string, patients: Patient[]): 
     return false;
   }
 }; 
+
+export default {
+  getPatients,
+  savePatients,
+  addPatient,
+  getPatient,
+  updatePatient,
+};  
