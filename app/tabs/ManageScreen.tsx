@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, TextInput, Pressable, useColorScheme,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../utils/theme';
-import { Patient } from '../types';
+import { Patient } from '../types/index';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { getCurrentUser, getPatientsForUser } from '../utils/patientStorage'; // Import helpers

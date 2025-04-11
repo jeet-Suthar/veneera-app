@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, useColorScheme, Pressable, Animated, Image, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, useColorScheme, Pressable, Animated, Image, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import { Patient } from '../types';
+import { Patient } from '../types/index';
 import { getCurrentUser, getPatientsForUser } from '../utils/patientStorage'; // Import helpers
 
 export default function HomeScreen() {
@@ -130,22 +130,43 @@ export default function HomeScreen() {
   };
 
   const navigateToPatientDetail = (patientId: string) => {
-    router.push({
-      pathname: "/screens/PatientDetailScreen",
-      params: { patientId }
-    });
+    try {
+      router.push({
+        pathname: "/screens/PatientDetailScreen",
+        params: { patientId }
+      });
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Fallback navigation or show error toast
+      Alert.alert('Navigation Error', 'Unable to open patient details. Please try again.'+ error);
+    }
   };
 
   const navigateToAddPatient = () => {
-    router.push('/tabs/AddPatientScreen');
+    try {
+      router.push('/tabs/AddPatientScreen');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Navigation Error', 'Unable to navigate. Please try again.'+ error);
+    }
   };
 
   const navigateToGenerateImages = () => {
-    router.push('/screens/GenerateImagesScreen');
+    try {
+      router.push('/screens/GenerateImagesScreen');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Navigation Error', 'Unable to navigate. Please try again.'+ error);
+    }
   };
 
   const navigateToManageScreen = () => {
-    router.push('/tabs/ManageScreen');
+    try {
+      router.push('/tabs/ManageScreen');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Navigation Error', 'Unable to navigate. Please try again.');
+    }
   };
 
   const toggleTaskCompletion = (taskId: string) => {
@@ -418,10 +439,7 @@ const styles = StyleSheet.create({
   notificationBadge: {
     padding: 10,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
+    boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.08)',
   },
   badge: {
     width: 8,
@@ -442,10 +460,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 14,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
+    boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.08)',
   },
   statNumber: {
     fontSize: 26,
@@ -531,10 +546,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     paddingHorizontal: 16,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
     elevation: 6,
     zIndex: 2,
   },
@@ -581,10 +593,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginHorizontal: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)',
     elevation: 2,
   },
   actionText: {
@@ -602,10 +611,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)',
     elevation: 2,
   },
   scheduleTime: {
@@ -653,10 +659,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)',
     elevation: 2,
   },
   taskItem: {

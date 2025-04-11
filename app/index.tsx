@@ -38,7 +38,7 @@ export default function Index() {
   }
   
   // If the user is not signed in and hasn't seen the landing screen, show it
-  if (hasSeenLanding) {
+  if (!hasSeenLanding) {
     return <Redirect href="/LandingScreen" />;
   }
   

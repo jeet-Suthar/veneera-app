@@ -733,12 +733,11 @@ export default function GenerateImagesScreen() {
               viewabilityConfig={viewabilityConfig}
               renderItem={({ item, index }) => (
                 <View style={styles.modalPage}>
-                  
-                    <Image
-                      source={{ uri: item, cache: 'reload' }}
-                      style={styles.modalImage}
-                      resizeMode="contain"
-                    />
+                  <Image
+                    source={{ uri: item, cache: 'reload' }}
+                    style={styles.modalImage}
+                    resizeMode="contain"
+                  />
                 </View>
               )}
             />

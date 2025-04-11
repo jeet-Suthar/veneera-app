@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { Patient } from '../types';
+import { Patient } from '../types/index';
 
 // Helper function to sanitize keys for SecureStore
 export const sanitizeKey = (key: string): string => {
@@ -154,11 +154,3 @@ export const savePatientsForUser = async (userId: string, patients: Patient[]): 
     return false;
   }
 }; 
-
-export default {
-  getPatients,
-  savePatients,
-  addPatient,
-  getPatient,
-  updatePatient,
-};  

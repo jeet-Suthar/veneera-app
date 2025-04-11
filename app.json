@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "teethsi",
-    "slug": "teethsi",
+    "slug": "veneera_app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icons/Dark.png",
@@ -28,7 +28,7 @@
       "favicon": "./assets/images/icons/Dark.png"
     },
     "plugins": [
-      "expo-router",
+      "expo-router",  
       [
         "expo-splash-screen",
         {
@@ -49,6 +49,7 @@
       "eas": {
         "projectId": "b8f50da3-3cec-4fd0-ac14-8e50b891c28b"
       }
-    }
+    },
+    "owner": "indrajeet_dev"
   }
 }

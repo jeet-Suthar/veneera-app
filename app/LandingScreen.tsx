@@ -218,11 +218,16 @@ export default function LandingScreen() {
   // Mark that user has seen landing screen and navigate to sign up
   const navigateToSignUp = async () => {
     try {
+      // Make sure we set the value atomically and wait for it to complete
       await AsyncStorage.setItem('@has_seen_landing', 'true');
-      router.push('/(auth)/sign-up');
+      // Add a small delay to ensure AsyncStorage write completes
+      setTimeout(() => {
+        router.push('/(auth)/sign-up');
+      }, 100);
     } catch (error) {
       console.error('Error saving landing screen status:', error);
-      router.push('/(auth)/sign-up'); // Navigate anyway
+      // Even if there's an error, still navigate to sign-up
+      router.push('/(auth)/sign-up');
     }
   };
 

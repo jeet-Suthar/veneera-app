@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, Pressable, useColorScheme } from 'react-native';
 import { Colors } from '../utils/theme';
-import { Patient } from '../types';
+import { Patient } from '../types/index';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface RecentPatientCardProps {
@@ -52,10 +52,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 3,
   },
   avatar: {

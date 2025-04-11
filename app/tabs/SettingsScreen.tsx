@@ -1,15 +1,46 @@
 import React from 'react';
-import { View, Text, StyleSheet, useColorScheme, Switch, Pressable } from 'react-native';
+import { View, Text, StyleSheet, useColorScheme, Switch, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SignOutButton } from '../components/SignOutButton';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const router = useRouter();
+
+  const resetAppData = async () => {
+    Alert.alert(
+      "Reset App Data",
+      "This will reset all app data and return you to the landing screen. You'll need to sign in again. Are you sure?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Clear all AsyncStorage data
+              await AsyncStorage.clear();
+              // Specifically ensure landing screen flag is removed
+              await AsyncStorage.removeItem('@has_seen_landing');
+              // Go back to the index page which will redirect to landing
+              router.replace('/');
+            } catch (error) {
+              console.error("Error resetting app data:", error);
+              Alert.alert("Error", "Failed to reset app data. Please try again.");
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const renderSettingItem = (icon: string, title: string, value?: boolean, onPress?: () => void) => (
     <Pressable style={styles.settingItem} onPress={onPress} disabled={!onPress}>
@@ -58,6 +89,7 @@ export default function SettingsScreen() {
         <View style={[styles.settingGroup, { backgroundColor: theme.surface }]}>
           {renderSettingItem('email-outline', 'Contact Support', undefined, () => router.push('/screens/ContactSupportScreen'))}
           {renderSettingItem('information-outline', 'About', undefined, () => router.push('/screens/AboutScreen'))}
+          {renderSettingItem('refresh', 'Reset App Data', undefined, resetAppData)}
         </View>
       <View style={styles.logoutContainer}>
          <SignOutButton

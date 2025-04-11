@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme, View, StyleSheet, Pressable } from "react-native";
 import { Colors } from "../utils/theme";
+import { useState } from "react";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -14,30 +15,40 @@ export default function TabLayout() {
         tabBarIcon: ({ color, focused }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
           
-          if (route.name === "HomeScreen") iconName = focused ? "home" : "home-outline";
-          else if (route.name === "ManageScreen") iconName = focused ? "list" : "list-outline";
-          else if (route.name === "AddPatientScreen") iconName = "add";
-          else if (route.name === "SettingsScreen") iconName = focused ? "settings" : "settings-outline";
-          else if (route.name === "ProfileScreen") iconName = focused ? "person" : "person-outline";
-          else iconName = "help-circle";
+          try {
+            if (route.name === "HomeScreen") iconName = focused ? "home" : "home-outline";
+            else if (route.name === "ManageScreen") iconName = focused ? "list" : "list-outline";
+            else if (route.name === "AddPatientScreen") iconName = "add";
+            else if (route.name === "SettingsScreen") iconName = focused ? "settings" : "settings-outline";
+            else if (route.name === "ProfileScreen") iconName = focused ? "person" : "person-outline";
+            else iconName = "help-circle";
 
-          // Special case for center button
-          if (route.name === "AddPatientScreen") {
-            return (
-              <View style={styles.addButtonWrapper}>
-                <View style={[styles.addButtonContainer, { backgroundColor: theme.primary }]}>
-                  <Ionicons name={iconName} size={24} color="white" />
+            // Special case for center button
+            if (route.name === "AddPatientScreen") {
+              return (
+                <View style={styles.addButtonWrapper}>
+                  <View style={[styles.addButtonContainer, { backgroundColor: theme.primary }]}>
+                    <Ionicons name={iconName} size={24} color="white" />
+                  </View>
                 </View>
+              );
+            }
+
+            return (
+              <View style={styles.tabIconContainer}>
+                <Ionicons name={iconName} size={24} color={color} />
+                {focused && <View style={[styles.activeIndicator, { backgroundColor: color }]} />}
+              </View>
+            );
+          } catch (error) {
+            console.error("Navigation error:", error);
+            // Return a fallback icon
+            return (
+              <View style={styles.tabIconContainer}>
+                <Ionicons name="alert-circle" size={24} color={color} />
               </View>
             );
           }
-
-          return (
-            <View style={styles.tabIconContainer}>
-              <Ionicons name={iconName} size={24} color={color} />
-              {focused && <View style={[styles.activeIndicator, { backgroundColor: color }]} />}
-            </View>
-          );
         },
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.textSecondary,
