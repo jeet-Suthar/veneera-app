@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, ScrollView, Pressable, useColorScheme, A
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../utils/theme';
-import { Patient } from '../types';
+import { Patient } from '../types/index';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { getCurrentUser, getPatientsForUser, deletePatient } from '../utils/patientStorage'; // Import helpers and deletePatient

@@ -12,7 +12,6 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  TextInput,
   Dimensions,
   StatusBar,
   FlatList,
@@ -20,17 +19,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-
-// remove this library for now because it's not working
-// import ReactNativeZoomableView from '@dudigital/react-native-zoomable-view/src/ReactNativeZoomableView';
-
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
-import * as SecureStore from 'expo-secure-store';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { PatientData } from '../tabs/AddPatientScreen';
-import { getCurrentUser, getPatientsForUser, savePatientsForUser } from '../utils/patientStorage';
+import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Veneer options
 const SHAPES = ["Natural", "Hollywood", "Cannie", "Oval", "Celebrity"] as const;
@@ -40,54 +33,43 @@ const COLORS = ["Pearl White", "Ivory", "Silk White", "Natural Beige"] as const;
 type Shape = typeof SHAPES[number];
 type Color = typeof COLORS[number];
 
-// Define constants at the top of the file
+// Define constants
 const SERVER_URL = 'https://c531-3-238-118-170.ngrok-free.app';
 const DEFAULT_IMAGES_TO_GENERATE = 4;
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const DEMO_VIEWED_KEY = '@demo_viewed';
 
-export default function GenerateImagesScreen() {
+export default function DemoGenerateScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const router = useRouter();
   
-  // Get patient data from params
-  const params = useLocalSearchParams();
-  const [patientData, setPatientData] = useState<PatientData>({
-    name: '',
-    age: '',
-    phone: '',
-    email: '',
-    notes: '',
-  });
-
-  useEffect(() => {
-    if (params) {
-      setPatientData({
-        name: String(params.name || ''),
-        age: String(params.age || ''),
-        phone: String(params.phone || ''),
-        email: String(params.email || ''),
-        notes: String(params.notes || ''),
-      });
-    }
-  }, []); // Run only once
-
   const [image, setImage] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string>('');
-  const [selectedPatient, setSelectedPatient] = useState<any>(null);
-  const [generationPrompt, setGenerationPrompt] = useState('');
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [loadingStates, setLoadingStates] = useState<boolean[]>([]);
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
   const [globalError, setGlobalError] = useState('');
-  const [imagesToGenerate, setImagesToGenerate] = useState(DEFAULT_IMAGES_TO_GENERATE);
   const [shape, setShape] = useState<Shape>(SHAPES[0]);
   const [color, setColor] = useState<Color>(COLORS[0]);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [isSourceModalVisible, setIsSourceModalVisible] = useState(false);
   const [selectedForPatient, setSelectedForPatient] = useState<number | null>(null);
+  const [imageSelected, setImageSelected] = useState<boolean>(false);
   const flatListRef = useRef<FlatList<string>>(null);
+
+  // Mark demo as viewed on first load
+  useEffect(() => {
+    const markDemoAsViewed = async () => {
+      try {
+        await AsyncStorage.setItem(DEMO_VIEWED_KEY, 'true');
+      } catch (error) {
+        console.error('Error marking demo as viewed:', error);
+      }
+    };
+    markDemoAsViewed();
+  }, []);
 
   // Request media library permission on mount for saving
   useEffect(() => {
@@ -134,6 +116,14 @@ export default function GenerateImagesScreen() {
 
   // Open the custom source modal instead of Alert
   const chooseImageSource = (): void => {
+    // Don't allow changing image once one is selected
+    if (imageSelected) {
+      Alert.alert(
+        "Image Already Selected", 
+        "In demo mode, you can only select one image. You can still regenerate results with the current image."
+      );
+      return;
+    }
     setIsSourceModalVisible(true);
   };
 
@@ -173,11 +163,8 @@ export default function GenerateImagesScreen() {
       if (!pickerResult.canceled && pickerResult.assets && pickerResult.assets.length > 0) {
         const selectedAsset = pickerResult.assets[0];
         console.log(`Image selected from ${source}:`, selectedAsset.uri);
-        console.log(`Image dimensions: ${selectedAsset.width}x${selectedAsset.height}`);
-        if (selectedAsset.fileSize) {
-            console.log(`Approximate file size: ${(selectedAsset.fileSize / 1024 / 1024).toFixed(2)} MB`);
-        }
         setImage(selectedAsset.uri);
+        setImageSelected(true); // Mark that an image has been selected
         // Reset generated images when a new source image is picked
         setGeneratedImages([]);
         setLoadingStates([]);
@@ -370,96 +357,8 @@ export default function GenerateImagesScreen() {
     console.log(`Finished regeneration attempt for image ${index}`);
   };
 
-  const downloadImage = async () => {
-    if (!modalVisible || selectedImageIndex === null) return;
-    const imageUri = generatedImages[selectedImageIndex];
-    if (!imageUri) return;
-
-    const permission = await MediaLibrary.requestPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission required", "Need access to media library to save images.");
-      return;
-    }
-
-    try {
-      let fileUri = '';
-      // Handle base64 URIs
-      if (imageUri.startsWith('data:')) {
-        const base64Code = imageUri.split("base64,")[1];
-        const filename = `veneera-generated-${Date.now()}.jpg`; // Assume jpg
-        fileUri = FileSystem.documentDirectory + filename;
-        await FileSystem.writeAsStringAsync(fileUri, base64Code, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      } else {
-        // Assume it's a remote URL (less likely with current fetch logic, but handle just in case)
-        const downloadResult = await FileSystem.downloadAsync(
-          imageUri,
-          FileSystem.documentDirectory + `veneera-generated-${Date.now()}.jpg`
-        );
-        fileUri = downloadResult.uri;
-      }
-
-      // Save the file to the media library
-      const asset = await MediaLibrary.createAssetAsync(fileUri);
-      await MediaLibrary.createAlbumAsync("Veneera Generated", asset, false);
-      Alert.alert("Success", "Image saved to your gallery in the 'Veneera Generated' album.");
-    } catch (error) {
-      console.error("Error saving image:", error);
-      Alert.alert("Error", "Could not save the image to your gallery.");
-    }
-  };
-
-  const createPatient = async () => {
-    if (selectedForPatient === null) {
-      Alert.alert('No image selected', 'Please select one of the generated images.');
-      return;
-    }
-
-    if (!patientData.name) {
-      Alert.alert('Missing information', 'Patient name is required.');
-      return;
-    }
-
-    try {
-      const currentUser = await getCurrentUser();
-      
-      if (!currentUser) {
-        Alert.alert('Error', 'You need to be logged in to create a patient.');
-        return;
-      }
-      
-      const newPatient = {
-        id: Date.now().toString(),
-        name: patientData.name,
-        age: parseInt(patientData.age) || 0,
-        phone: patientData.phone || '',
-        email: patientData.email || '',
-        notes: patientData.notes || '',
-        createdAt: new Date().toISOString(),
-        lastVisit: new Date().toISOString(),
-        photoUrl: generatedImages[selectedForPatient],
-        userId: currentUser,
-      };
-      
-      let patients = await getPatientsForUser(currentUser);
-      patients.push(newPatient);
-      
-      const success = await savePatientsForUser(currentUser, patients);
-      
-      if (success) {
-        Alert.alert(
-          'Success',
-          'New patient created successfully!',
-          [{ text: 'OK', onPress: () => router.back() }]
-        );
-      } else {
-         Alert.alert('Error', 'Failed to save patient. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error creating patient:', error);
-      Alert.alert('Error', 'Failed to create patient. Please try again.');
-    }
+  const navigateToSignUp = () => {
+    router.replace('/(auth)/sign-up');
   };
 
   const toggleImageSelection = (index: number) => {
@@ -623,10 +522,10 @@ export default function GenerateImagesScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
+        <Pressable style={styles.backButton} onPress={() => router.push('/(auth)/sign-in')}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>AI Image Generation</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Demo Mode</Text>
         <View style={{ width: 40 }} />
       </View>
       
@@ -635,11 +534,14 @@ export default function GenerateImagesScreen() {
          contentContainerStyle={{ paddingBottom: 30 }}
          keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.imageUploadContainer}>
-          <Text style={[styles.patientName, { color: theme.text }]}>{patientData.name}</Text>
-          <Text style={[styles.patientDetails, { color: theme.textSecondary }]}>
-            Age: {patientData.age} {patientData.phone ? `• Phone: ${patientData.phone}` : ''}
+        <View style={styles.demoNoticeContainer}>
+          <Text style={[styles.demoNoticeTitle, { color: theme.text }]}>Try Before You Sign Up!</Text>
+          <Text style={[styles.demoNoticeText, { color: theme.textSecondary }]}>
+            This is a one-time demo. Once you leave this screen, you'll need to sign up to access it again.
           </Text>
+        </View>
+
+        <View style={styles.imageUploadContainer}>
           {!image ? (
             <Pressable style={[styles.uploadButton, { borderColor: theme.border }]} onPress={chooseImageSource}>
               <MaterialCommunityIcons name="camera-plus-outline" size={40} color={theme.primary} />
@@ -666,7 +568,7 @@ export default function GenerateImagesScreen() {
                 {Array.from({ length: DEFAULT_IMAGES_TO_GENERATE }).map((_, index) => renderGeneratedImage(index))}
               </View>
 
-              {/* Done button to create patient with selected image */}
+              {/* Sign up button when an image is selected */}
               {generatedImages.filter(img => img).length > 0 && (
                 <Pressable
                   style={[
@@ -675,12 +577,12 @@ export default function GenerateImagesScreen() {
                       backgroundColor: selectedForPatient !== null ? theme.success : theme.textSecondary 
                     }
                   ]}
-                  onPress={createPatient}
+                  onPress={navigateToSignUp}
                   disabled={selectedForPatient === null}
                 >
-                  <MaterialCommunityIcons name="check-circle-outline" size={20} color="white" />
+                  <MaterialCommunityIcons name="login" size={20} color="white" />
                   <Text style={styles.saveButtonText}>
-                    {selectedForPatient !== null ? 'Done' : 'Select an image first'}
+                    {selectedForPatient !== null ? 'Sign Up to Save' : 'Select an image first'}
                   </Text>
                 </Pressable>
               )}
@@ -708,9 +610,6 @@ export default function GenerateImagesScreen() {
                   {selectedImageIndex + 1} / {generatedImages.filter(Boolean).length}
               </Text>
               <View style={{ flexDirection: 'row', gap: 15 }}>
-                 <TouchableOpacity style={styles.modalHeaderButton} onPress={downloadImage}>
-                   <MaterialCommunityIcons name="download-outline" size={24} color="white" />
-                 </TouchableOpacity>
                  <TouchableOpacity style={styles.modalHeaderButton} onPress={() => regenerateImage(selectedImageIndex)}>
                    <MaterialIcons name="refresh" size={24} color="white" />
                  </TouchableOpacity>
@@ -766,18 +665,28 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-  scrollView: {
-    flex: 1,
+  demoNoticeContainer: {
+    backgroundColor: 'rgba(100, 149, 237, 0.1)',
     padding: 16,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 20,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#6495ED',
   },
-  patientName: {
-    fontSize: 24,
+  demoNoticeTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 8,
   },
-  patientDetails: {
-    fontSize: 16,
-    marginBottom: 24,
+  demoNoticeText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  scrollView: {
+    flex: 1,
+    padding: 16,
   },
   imageUploadContainer: {
     flex: 1,
@@ -937,7 +846,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
   modalHeaderButton: {
-      padding: 8,
+    padding: 8,
   },
   modalHeaderText: {
     color: 'white',
@@ -967,7 +876,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.light.border,
+    borderBottomColor: '#e0e0e0',
     marginBottom: 8,
   },
   actionSheetButton: {
@@ -984,7 +893,7 @@ const styles = StyleSheet.create({
   cancelButton: {
     marginTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.light.border,
+    borderTopColor: '#e0e0e0',
   },
   saveButton: {
     height: 50,

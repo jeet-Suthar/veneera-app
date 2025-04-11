@@ -47,3 +47,5 @@ export const hasPatientImages = (patientId: string): boolean => {
 export const getAllPatientImages = (): PatientImages[] => {
   return Object.values(patientImagesStore);
 }; 
+
+export default savePatientImages;

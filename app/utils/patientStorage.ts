@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { Patient } from '../types';
+import { Patient } from '../types/index';
 
 // Helper function to sanitize keys for SecureStore
 export const sanitizeKey = (key: string): string => {
@@ -45,7 +45,10 @@ export const getPatients = async (): Promise<Patient[]> => {
     const currentUser = await getCurrentUser();
     if (!currentUser) return [];
     
-    const patientsJson = await SecureStore.getItemAsync(`patients_${currentUser}`);
+    const sanitizedUserId = sanitizeKey(currentUser);
+    const key = `patients_${sanitizedUserId}`;
+    
+    const patientsJson = await SecureStore.getItemAsync(key);
     if (!patientsJson) return [];
     
     return JSON.parse(patientsJson);
@@ -61,7 +64,10 @@ export const savePatients = async (patients: Patient[]): Promise<boolean> => {
     const currentUser = await getCurrentUser();
     if (!currentUser) return false;
     
-    await SecureStore.setItemAsync(`patients_${currentUser}`, JSON.stringify(patients));
+    const sanitizedUserId = sanitizeKey(currentUser);
+    const key = `patients_${sanitizedUserId}`;
+    
+    await SecureStore.setItemAsync(key, JSON.stringify(patients));
     return true;
   } catch (error) {
     console.error('Error saving patients:', error);

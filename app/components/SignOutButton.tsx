@@ -67,3 +67,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#a3a3a3',
   },
 }); 
+
+export default SignOutButton;
