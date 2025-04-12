@@ -57,7 +57,7 @@ export default function SignInScreen() {
   };
 
   const handleTryDemo = () => {
-    router.push('/demo-generate');
+    router.push('/screens/DemoGenerateScreen');
   };
 
   // --- OAuth Handler ---

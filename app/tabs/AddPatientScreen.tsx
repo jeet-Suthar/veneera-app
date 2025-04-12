@@ -51,7 +51,7 @@ const AddPatientScreen: FC = () => {
     if (patientData.name.trim() && patientData.age.trim()) {
       // Navigate to the AI generation screen with patient data
       router.push({
-        pathname: "/generate-images",
+        pathname: "/screens/GenerateImagesScreen",
         params: {
           name: patientData.name,
           age: patientData.age,

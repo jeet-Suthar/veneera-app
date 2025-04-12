@@ -60,7 +60,7 @@ export default function SignUpScreen() {
   };
 
   const handleTryDemo = () => {
-    router.push('/demo-generate');
+    router.push('/screens/DemoGenerateScreen');
   };
 
   // --- OAuth Handler ---

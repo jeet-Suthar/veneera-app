@@ -542,7 +542,7 @@ export default function GenerateImagesScreen() {
           <View style={styles.errorContainer}>
             <MaterialIcons name="error-outline" size={24} color={theme.error} />
             <Text style={[styles.errorText, { color: theme.error }]}>
-              {errorMessages[index]}
+              Server is busy, please try again later!
             </Text>
             <TouchableOpacity
               style={[styles.retryButton, { backgroundColor: theme.primary }]}
