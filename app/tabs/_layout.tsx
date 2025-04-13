@@ -46,7 +46,7 @@ export default function TabLayout() {
             return (
               <View style={styles.tabIconContainer}>
                 <Ionicons name="alert-circle" size={24} color={color} />
-              </View>
+              </View> 
             );
           }
         },

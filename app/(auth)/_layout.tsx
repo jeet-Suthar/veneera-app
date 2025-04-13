@@ -1,11 +1,11 @@
 import { Redirect, Stack } from 'expo-router'
-import { useAuth } from '@clerk/clerk-expo'
+import { useAuth } from '../context/AuthContext'
 
 export default function AuthRoutesLayout() {
-  const { isSignedIn } = useAuth()
+  const { user } = useAuth()
 
   // If the user is signed in, redirect them to the main app
-  if (isSignedIn) {
+  if (user) {
     return <Redirect href={'/tabs/HomeScreen'} /> // Redirect to the main tabs
   }
 

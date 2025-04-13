@@ -1,13 +1,12 @@
 import React from 'react';
 import { Text, TextInput, TouchableOpacity, View, StyleSheet, Alert, useColorScheme } from 'react-native';
-import { useSignIn, useOAuth, useUser, useClerk } from '@clerk/clerk-expo';
 import { Link, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as SecureStore from 'expo-secure-store';
-import { setCurrentUser } from '../utils/patientStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../context/AuthContext';
+import * as Google from 'expo-auth-session/providers/google';
 
 // Ensure WebBrowser closes properly
 WebBrowser.maybeCompleteAuthSession();
@@ -18,16 +17,20 @@ export default function SignInScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
-  const { signIn, setActive, isLoaded } = useSignIn();
-  const { user } = useUser();
+  const { signIn, signInWithGoogle, isLoading } = useAuth();
   const router = useRouter();
-  const client = useClerk();
 
   const [emailAddress, setEmailAddress] = React.useState('');
   const [password, setPassword] = React.useState('');
-  const [loading, setLoading] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
   const [demoViewed, setDemoViewed] = React.useState(false);
+
+  // Google Auth Configuration
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    androidClientId: '40963473472-peg71vfppfj78gtpd5bj04cnjpq11u5d.apps.googleusercontent.com',
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  });
 
   // Check if demo has been viewed
   React.useEffect(() => {
@@ -42,17 +45,20 @@ export default function SignInScreen() {
     checkDemoViewed();
   }, []);
 
-  // --- OAuth Flow Hooks ---
-  const { startOAuthFlow: startGoogleOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
-  const { startOAuthFlow: startAppleOAuthFlow } = useOAuth({ strategy: 'oauth_apple' });
+  // Handle Google Auth Response
+  React.useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      handleGoogleLogin(id_token);
+    }
+  }, [response]);
 
-  // Save user info to SecureStore
-  const saveUserToStorage = async (email: string) => {
+  const handleGoogleLogin = async (idToken: string) => {
     try {
-      await setCurrentUser(email);
-      console.log('User saved to SecureStore:', email);
-    } catch (error) {
-      console.error('Error saving user to SecureStore:', error);
+      await signInWithGoogle(idToken);
+      router.replace('/tabs/HomeScreen');
+    } catch (error: any) {
+      Alert.alert('Sign In Error', error.message || 'An unknown error occurred during Google sign-in.');
     }
   };
 
@@ -60,82 +66,18 @@ export default function SignInScreen() {
     router.push('/screens/DemoGenerateScreen');
   };
 
-  // --- OAuth Handler ---
-  const onPressOAuth = async (startFlow: () => Promise<any>) => {
-    if (!isLoaded) return;
-    setLoading(true);
-    try {
-      const { createdSessionId, setActive, signUp } = await startFlow();
-
-      if (createdSessionId) {
-        await setActive({ session: createdSessionId });
-        
-        // Get the current session
-        const session = await client.session;
-        if (session) {
-          // Get the user's email from the session
-          const userEmail = session.user?.emailAddresses[0]?.emailAddress;
-          console.log('User email from session:', userEmail);
-          
-          if (userEmail) {
-            await saveUserToStorage(userEmail);
-          } else {
-            // If we can't get the email from session, use the email from the form
-            await saveUserToStorage(emailAddress);
-          }
-        } else {
-          // If no session, use the email from the form
-          await saveUserToStorage(emailAddress);
-        }
-        
-        router.replace('/tabs/HomeScreen');
-      } else {
-        if (signUp?.status === 'missing_requirements') {
-          console.log('OAuth sign-in requires additional steps', JSON.stringify(signUp, null, 2));
-          if (signUp.missingFields && signUp.missingFields.includes('phone_number')) {
-            router.push('/(auth)/complete-signup');
-          } else {
-            Alert.alert('Sign In Incomplete', 'Additional information is required. Please try again or contact support.');
-          }
-        } else {
-          console.log('OAuth flow finished without creating a session ID.');
-          Alert.alert('Sign In Issue', 'There was an issue signing in. Please try again.');
-        }
-      }
-    } catch (err: any) {
-      console.error('OAuth error', JSON.stringify(err, null, 2));
-      Alert.alert('OAuth Error', err.errors ? err.errors[0].message : 'An unknown error occurred during sign-in.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- Email/Password Sign In ---
+  // Email/Password Sign In
   const onSignInPress = async () => {
-    if (!isLoaded) return;
-    setLoading(true);
-    try {
-      const signInAttempt = await signIn.create({
-        identifier: emailAddress,
-        password,
-      });
+    if (!emailAddress || !password) {
+      Alert.alert('Sign In Error', 'Please enter both email and password.');
+      return;
+    }
 
-      if (signInAttempt.status === 'complete') {
-        await setActive({ session: signInAttempt.createdSessionId });
-        
-        // Store email as the user identifier
-        await saveUserToStorage(emailAddress);
-        
-        router.replace('/tabs/HomeScreen');
-      } else {
-        console.error('Sign In Status not complete:', JSON.stringify(signInAttempt, null, 2));
-        Alert.alert('Sign In Pending', 'Further action may be required to complete sign-in.');
-      }
-    } catch (err: any) {
-      console.error('Sign In Error:', JSON.stringify(err, null, 2));
-      Alert.alert('Sign In Error', err.errors ? err.errors[0].message : 'An unknown error occurred during sign-in.');
-    } finally {
-      setLoading(false);
+    try {
+      await signIn(emailAddress, password);
+      router.replace('/tabs/HomeScreen');
+    } catch (error: any) {
+      Alert.alert('Sign In Error', error.message || 'An unknown error occurred during sign-in.');
     }
   };
 
@@ -153,7 +95,7 @@ export default function SignInScreen() {
         placeholderTextColor={theme.textSecondary}
         style={[styles.input, { backgroundColor: theme.surface, color: theme.text }]}
         keyboardType="email-address"
-        editable={!loading}
+        editable={!isLoading}
       />
       {/* Password Input with Toggle */}
       <View style={[styles.passwordContainer, { backgroundColor: theme.surface }]}>
@@ -164,7 +106,7 @@ export default function SignInScreen() {
           onChangeText={setPassword}
           placeholderTextColor={theme.textSecondary}
           style={[styles.passwordInput, { backgroundColor: theme.surface, color: theme.text }]}
-          editable={!loading}
+          editable={!isLoading}
         />
         <TouchableOpacity
           style={styles.eyeIcon}
@@ -178,11 +120,9 @@ export default function SignInScreen() {
         </TouchableOpacity>
       </View>
       
-     
-
       {/* Submit Button */}
-      <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={onSignInPress} disabled={loading}>
-        <Text style={[styles.buttonText, { color: theme.text }]}>{loading ? 'Signing In...' : 'Sign In'}</Text>
+      <TouchableOpacity style={[styles.button, isLoading && styles.buttonDisabled]} onPress={onSignInPress} disabled={isLoading}>
+        <Text style={[styles.buttonText, { color: theme.text }]}>{isLoading ? 'Signing In...' : 'Sign In'}</Text>
       </TouchableOpacity>
       
       {/* Demo Button (conditional based on previous usage) */}
@@ -190,7 +130,7 @@ export default function SignInScreen() {
         <TouchableOpacity 
           style={[styles.demoButton, { borderColor: theme.primary }]} 
           onPress={handleTryDemo}
-          disabled={loading}
+          disabled={isLoading}
         >
           <MaterialCommunityIcons name="image-filter-hdr" size={20} color={theme.primary} />
           <Text style={[styles.demoButtonText, { color: theme.primary }]}>Try Our AI Demo First</Text>
@@ -198,22 +138,15 @@ export default function SignInScreen() {
       )}
       
       <Text style={styles.separator}>or</Text>
-           {/* OAuth Buttons */}
-           <TouchableOpacity
-        style={[styles.oauthButton, styles.googleButton, loading && styles.buttonDisabled]}
-        onPress={() => onPressOAuth(startGoogleOAuthFlow)}
-        disabled={loading}
+      
+      {/* Google Sign In Button */}
+      <TouchableOpacity
+        style={[styles.oauthButton, styles.googleButton, isLoading && styles.buttonDisabled]}
+        onPress={() => promptAsync()}
+        disabled={isLoading}
       >
         <MaterialCommunityIcons name="google" size={24} style={{ color: theme.background }} />
-        <Text style={[styles.oauthButtonText, styles.googleButtonText]}>Sign up with Google</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.oauthButton, styles.appleButton, loading && styles.buttonDisabled]}
-        onPress={() => onPressOAuth(startAppleOAuthFlow)}
-        disabled={loading}
-      >
-        <MaterialCommunityIcons name="apple" size={24} color="#FFFFFF" />
-        <Text style={[styles.oauthButtonText, styles.appleButtonText]}>Sign up with Apple</Text>
+        <Text style={[styles.oauthButtonText, styles.googleButtonText]}>Sign in with Google</Text>
       </TouchableOpacity>
 
       {/* Link to Sign Up */}
@@ -279,9 +212,6 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     borderWidth: 1,
   },
-  appleButton: {
-    backgroundColor: '#000',
-  },
   oauthButtonText: {
     fontWeight: 'bold',
     fontSize: 16,
@@ -289,9 +219,6 @@ const styles = StyleSheet.create({
   },
   googleButtonText: {
      color: '#555',
-  },
-   appleButtonText: {
-     color: '#fff',
   },
   separator: {
     textAlign: 'center',

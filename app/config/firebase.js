@@ -1,9 +1,8 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+// Import Analytics conditionally to avoid errors in React Native
+import { isSupported, getAnalytics } from "firebase/analytics";
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -19,7 +18,15 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+
+// Initialize Analytics only if supported (won't run in React Native environment)
+let analytics = null;
+// This check is needed because Firebase Analytics is not supported in React Native
+if (typeof window !== 'undefined') {
+  // Only initialize analytics in web environments
+  isSupported().then(yes => yes && (analytics = getAnalytics(app)));
+}
+
 const auth = getAuth(app);
 
-export { auth };
+export { auth, app }; 

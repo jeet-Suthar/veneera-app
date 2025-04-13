@@ -1,47 +1,19 @@
 import React from 'react';
-import { ClerkProvider } from '@clerk/clerk-expo';
-import { tokenCache } from '@clerk/clerk-expo/token-cache';
 import { Stack } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-
-// Add this cache implementation
-const cache = {
-  async getToken(key: string) {
-    try {
-      return SecureStore.getItemAsync(key);
-    } catch (err) {
-      return null;
-    }
-  },
-  async saveToken(key: string, value: string) {
-    try {
-      return SecureStore.setItemAsync(key, value);
-    } catch (err) {
-      return;
-    }
-  },
-};
+import { AuthProvider } from './context/AuthContext';
 
 export default function RootLayout() {
-  const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
   const colorScheme = useColorScheme();
 
-  if (!publishableKey) {
-    throw new Error('Missing Clerk Publishable Key. Please set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in your .env file');
-  }
-
   return (
-    <ClerkProvider
-      tokenCache={cache} // Use the secure cache
-      publishableKey={publishableKey}
-    >
+    <AuthProvider>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
+        <Stack.Screen name="tabs" />
       </Stack>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }
 // This layout file is used to define the main structure of the app.

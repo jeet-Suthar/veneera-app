@@ -1,11 +1,11 @@
-import { useAuth } from '@clerk/clerk-expo';
+import { useAuth } from './context/AuthContext';
 import { Redirect } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 
 export default function Index() {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { user, isLoading } = useAuth();
   const [hasSeenLanding, setHasSeenLanding] = useState<boolean | null>(null);
 
   // Check if the user has seen the landing screen before
@@ -24,7 +24,7 @@ export default function Index() {
   }, []);
 
   // Show a loading indicator while we're checking auth state and landing screen status
-  if (!isLoaded || hasSeenLanding === null) {
+  if (isLoading || hasSeenLanding === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#007AFF" />
@@ -33,7 +33,7 @@ export default function Index() {
   }
 
   // If the user is signed in, redirect to the main tabs
-  if (isSignedIn) {
+  if (user) {
     return <Redirect href="/tabs/HomeScreen" />;
   }
   

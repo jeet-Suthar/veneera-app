@@ -1,14 +1,12 @@
 import * as React from 'react';
 import { Text, TextInput, TouchableOpacity, View, StyleSheet, Alert, useColorScheme } from 'react-native';
-import { useSignUp, useOAuth, useUser, useClerk } from '@clerk/clerk-expo';
 import { Link, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { supabase } from '../utils/supabase';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as SecureStore from 'expo-secure-store';
-import { setCurrentUser } from '../utils/patientStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../context/AuthContext';
+import * as Google from 'expo-auth-session/providers/google';
 
 // Ensure WebBrowser closes properly
 WebBrowser.maybeCompleteAuthSession();
@@ -19,18 +17,20 @@ export default function SignUpScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
-  const { isLoaded, signUp, setActive } = useSignUp();
-  const { user } = useUser();
+  const { signUp, signInWithGoogle, isLoading } = useAuth();
   const router = useRouter();
-  const client = useClerk();
 
   const [emailAddress, setEmailAddress] = React.useState('');
   const [password, setPassword] = React.useState('');
-  const [pendingVerification, setPendingVerification] = React.useState(false);
-  const [code, setCode] = React.useState('');
-  const [loading, setLoading] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
   const [demoViewed, setDemoViewed] = React.useState(false);
+
+  // Google Auth Configuration
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    androidClientId: '40963473472-peg71vfppfj78gtpd5bj04cnjpq11u5d.apps.googleusercontent.com',
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  });
 
   // Check if demo has been viewed
   React.useEffect(() => {
@@ -45,17 +45,20 @@ export default function SignUpScreen() {
     checkDemoViewed();
   }, []);
 
-  // --- OAuth Flow Hooks ---
-  const { startOAuthFlow: startGoogleOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
-  const { startOAuthFlow: startAppleOAuthFlow } = useOAuth({ strategy: 'oauth_apple' });
+  // Handle Google Auth Response
+  React.useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      handleGoogleLogin(id_token);
+    }
+  }, [response]);
 
-  // Save user info to SecureStore
-  const saveUserToStorage = async (email: string) => {
+  const handleGoogleLogin = async (idToken: string) => {
     try {
-      await setCurrentUser(email);
-      console.log('User saved to SecureStore:', email);
-    } catch (error) {
-      console.error('Error saving user to SecureStore:', error);
+      await signInWithGoogle(idToken);
+      router.replace('/tabs/HomeScreen');
+    } catch (error: any) {
+      Alert.alert('Sign Up Error', error.message || 'An unknown error occurred during Google sign-up.');
     }
   };
 
@@ -63,122 +66,23 @@ export default function SignUpScreen() {
     router.push('/screens/DemoGenerateScreen');
   };
 
-  // --- OAuth Handler ---
-  const onPressOAuth = async (startFlow: () => Promise<any>) => {
-    if (!isLoaded) return;
-    setLoading(true);
-    try {
-      const { createdSessionId, setActive: setOAuthActive, signUp: oauthSignUp } = await startFlow();
-
-      if (createdSessionId) {
-        await setOAuthActive({ session: createdSessionId });
-        
-        // Get the current session
-        const session = await client.session;
-        if (session) {
-          // Get the user's email from the session
-          const userEmail = session.user?.emailAddresses[0]?.emailAddress;
-          console.log('User email from session:', userEmail);
-          
-          if (userEmail) {
-            await saveUserToStorage(userEmail);
-          } else {
-            // If we can't get the email from session, use the email from the form
-            await saveUserToStorage(emailAddress);
-          }
-        } else {
-          // If no session, use the email from the form
-          await saveUserToStorage(emailAddress);
-        }
-        
-        router.replace('/tabs/HomeScreen');
-      } else {
-        if (oauthSignUp?.status === 'missing_requirements') {
-          console.log('OAuth sign up requires additional steps', JSON.stringify(oauthSignUp, null, 2));
-          if (oauthSignUp.missingFields?.includes('phone_number')) {
-            router.push('/(auth)/complete-signup');
-          } else {
-            Alert.alert('Sign Up Incomplete', 'Additional information is required.');
-          }
-        } else {
-          console.log('OAuth flow finished without session ID.');
-          Alert.alert('Sign Up Issue', 'Could not complete sign up.');
-        }
-      }
-    } catch (err: any) {
-      console.error('OAuth error', JSON.stringify(err, null, 2));
-      Alert.alert('OAuth Error', err.errors?.[0]?.message ?? 'An unknown error occurred.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- Email/Password Sign Up ---
+  // Email/Password Sign Up
   const onSignUpPress = async () => {
-    if (!isLoaded) return;
-    setLoading(true);
+    if (!emailAddress || !password) {
+      Alert.alert('Sign Up Error', 'Please enter both email and password.');
+      return;
+    }
+    
     try {
-      await signUp.create({
-        emailAddress,
-        password,
-      });
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-      setPendingVerification(true);
-    } catch (err: any) {
-      console.error('Sign Up Error:', JSON.stringify(err, null, 2));
-      Alert.alert('Sign Up Error', err.errors?.[0]?.message ?? 'An unknown error occurred.');
-    } finally {
-      setLoading(false);
+      await signUp(emailAddress, password);
+      Alert.alert('Success', 'Account created successfully! You can now sign in.');
+      router.replace('/tabs/HomeScreen');
+    } catch (error: any) {
+      Alert.alert('Sign Up Error', error.message || 'An unknown error occurred during sign-up.');
     }
   };
 
-  // --- Email Verification ---
-  const onVerifyPress = async () => {
-    if (!isLoaded) return;
-    setLoading(true);
-    try {
-      const completeSignUp = await signUp.attemptEmailAddressVerification({ code });
-      if (completeSignUp.status === 'complete') {
-        await setActive({ session: completeSignUp.createdSessionId });
-        
-        // Store email as the user identifier
-        await saveUserToStorage(emailAddress);
-        
-        router.replace('/tabs/HomeScreen');
-      } else {
-        console.error('Verification Error Status:', JSON.stringify(completeSignUp, null, 2));
-        Alert.alert('Verification Error', 'Could not complete verification.');
-      }
-    } catch (err: any) {
-      console.error('Verification Error:', JSON.stringify(err, null, 2));
-      Alert.alert('Verification Error', err.errors?.[0]?.message ?? 'An unknown error occurred.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // --- Render Verification Form ---
-  if (pendingVerification) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <Text style={[styles.title, { color: theme.text }]}>Verify your email</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.surface, color: theme.text }]}
-          value={code}
-          placeholder="Enter verification code..."
-          onChangeText={setCode}
-          keyboardType="numeric"
-          editable={!loading}
-          placeholderTextColor={theme.textSecondary}
-        />
-        <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }, loading && styles.buttonDisabled]} onPress={onVerifyPress} disabled={loading}>
-          <Text style={[styles.buttonText, { color: theme.text }]}>{loading ? 'Verifying...' : 'Verify Email'}</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  // --- Render Main Sign Up Form (Corrected Order & Styles) ---
+  // --- Render Main Sign Up Form ---
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Text style={[styles.title, { color: theme.text }]}>Create Account</Text>
@@ -192,7 +96,7 @@ export default function SignUpScreen() {
         placeholderTextColor={theme.textSecondary}
         style={[styles.input, { backgroundColor: theme.surface, color: theme.text }]}
         keyboardType="email-address"
-        editable={!loading}
+        editable={!isLoading}
       />
 
       {/* Password Input with Toggle */}
@@ -204,7 +108,7 @@ export default function SignUpScreen() {
           onChangeText={setPassword}
           placeholderTextColor={theme.textSecondary}
           style={[styles.passwordInput, { backgroundColor: theme.surface, color: theme.text }]}
-          editable={!loading}
+          editable={!isLoading}
         />
         <TouchableOpacity
           style={styles.eyeIcon}
@@ -219,8 +123,8 @@ export default function SignUpScreen() {
       </View>
 
       {/* Submit Button */}
-      <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }, loading && styles.buttonDisabled]} onPress={onSignUpPress} disabled={loading}>
-        <Text style={[styles.buttonText, { color: theme.text }]}>{loading ? 'Signing Up...' : 'Sign Up'}</Text>
+      <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }, isLoading && styles.buttonDisabled]} onPress={onSignUpPress} disabled={isLoading}>
+        <Text style={[styles.buttonText, { color: theme.text }]}>{isLoading ? 'Signing Up...' : 'Sign Up'}</Text>
       </TouchableOpacity>
 
       {/* Demo Button (conditional based on previous usage) */}
@@ -228,7 +132,7 @@ export default function SignUpScreen() {
         <TouchableOpacity 
           style={[styles.demoButton, { borderColor: theme.primary }]} 
           onPress={handleTryDemo}
-          disabled={loading}
+          disabled={isLoading}
         >
           <MaterialCommunityIcons name="image-filter-hdr" size={20} color={theme.primary} />
           <Text style={[styles.demoButtonText, { color: theme.primary }]}>Try Our AI Demo First</Text>
@@ -238,22 +142,14 @@ export default function SignUpScreen() {
       {/* Separator */}
       <Text style={[styles.separator, { color: theme.textSecondary }]}>or</Text>
 
-      {/* OAuth Buttons */}
+      {/* OAuth Button */}
       <TouchableOpacity
-        style={[styles.oauthButton, styles.googleButton, loading && styles.buttonDisabled]}
-        onPress={() => onPressOAuth(startGoogleOAuthFlow)}
-        disabled={loading}
+        style={[styles.oauthButton, styles.googleButton, isLoading && styles.buttonDisabled]}
+        onPress={() => promptAsync()}
+        disabled={isLoading}
       >
         <MaterialCommunityIcons name="google" size={24} style={{ color: theme.background }} />
         <Text style={[styles.oauthButtonText, styles.googleButtonText]}>Sign up with Google</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.oauthButton, styles.appleButton, loading && styles.buttonDisabled]}
-        onPress={() => onPressOAuth(startAppleOAuthFlow)}
-        disabled={loading}
-      >
-        <MaterialCommunityIcons name="apple" size={24} color="#FFFFFF" />
-        <Text style={[styles.oauthButtonText, styles.appleButtonText]}>Sign up with Apple</Text>
       </TouchableOpacity>
 
       {/* Link to Sign In */}
@@ -335,18 +231,12 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     borderWidth: 1,
   },
-  appleButton: {
-    backgroundColor: '#000',
-  },
   oauthButtonText: {
     fontWeight: 'bold',
     fontSize: 16,
   },
   googleButtonText: {
      color: '#555',
-  },
-   appleButtonText: {
-     color: '#fff',
   },
   separator: {
     textAlign: 'center',
