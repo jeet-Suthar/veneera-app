@@ -7,13 +7,13 @@ import {
   ScrollView,
   Pressable,
   useColorScheme,
-  Alert,
   ColorSchemeName,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors as ThemeColors } from '../utils/theme';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAlert } from '../context/AlertContext';
 
 // Define the structure of your theme colors
 interface Theme {
@@ -38,6 +38,7 @@ const AddPatientScreen: FC = () => {
   const colorScheme: ColorSchemeName = useColorScheme();
   const theme: Theme = ThemeColors[colorScheme === 'dark' ? 'dark' : 'light'];
   const router = useRouter();
+  const alert = useAlert();
   
   const [patientData, setPatientData] = useState<PatientData>({
     name: '',
@@ -61,7 +62,7 @@ const AddPatientScreen: FC = () => {
         }
       });
     } else {
-      Alert.alert("Missing Information", "Please enter patient's name and age.");
+      alert.warning("Please enter patient's name and age.", "Missing Information");
     }
   };
 
@@ -79,7 +80,7 @@ const AddPatientScreen: FC = () => {
       notes: '',
     });
     // Optional: Add a confirmation or feedback
-    // Alert.alert("Fields Cleared", "All input fields have been reset.");
+    // alert.info("All input fields have been reset.", "Fields Cleared");
   };
 
   return (

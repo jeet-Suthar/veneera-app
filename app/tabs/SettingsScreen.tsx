@@ -1,44 +1,56 @@
 import React from 'react';
-import { View, Text, StyleSheet, useColorScheme, Switch, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, useColorScheme, Switch, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SignOutButton } from '../components/SignOutButton';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
+import { rgbaArrayToRGBAColor } from 'react-native-reanimated/lib/typescript/Colors';
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const router = useRouter();
+  const { deleteAccount, signOutUser } = useAuth();
+  const alert = useAlert();
 
-  const resetAppData = async () => {
-    Alert.alert(
-      "Reset App Data",
-      "This will reset all app data and return you to the landing screen. You'll need to sign in again. Are you sure?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Reset",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              // Clear all AsyncStorage data
-              await AsyncStorage.clear();
-              // Specifically ensure landing screen flag is removed
-              await AsyncStorage.removeItem('@has_seen_landing');
-              // Go back to the index page which will redirect to landing
-              router.replace('/');
-            } catch (error) {
-              console.error("Error resetting app data:", error);
-              Alert.alert("Error", "Failed to reset app data. Please try again.");
-            }
+  const handleDeleteAccount = async () => {
+    alert.confirm(
+      "Delete Account",
+      "This action is permanent and cannot be undone. All your data associated with this account will be deleted. Are you sure?",
+      async () => {
+        try {
+          await deleteAccount();
+          alert.success("Your account has been deleted successfully.");
+          router.replace('/(auth)/sign-in');
+        } catch (error: any) {
+          console.error("Error deleting account:", error);
+          if (error.code === 'auth/requires-recent-login') {
+            alert.alert({
+              title: "Re-authentication Required",
+              message: "Deleting your account requires you to recently sign in. Please sign out and sign back in, then try deleting your account again.",
+              type: "warning",
+              buttons: [
+                { text: "OK" },
+                {
+                  text: "Sign Out Now",
+                  style: "default",
+                  onPress: async () => {
+                    await signOutUser();
+                    router.replace('/(auth)/sign-in');
+                  }
+                }
+              ]
+            });
+          } else {
+            alert.error(`Failed to delete account: ${error.message}`);
           }
         }
-      ]
+      },
+      undefined,
+      "warning"
     );
   };
 
@@ -69,13 +81,6 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.content}>
-        {/* <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Preferences</Text>
-        </View>
-        <View style={[styles.settingGroup, { backgroundColor: theme.surface }]}>
-          {renderSettingItem('theme-light-dark', 'Dark Mode', colorScheme === 'dark')}
-        </View> */}
-
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Subscription</Text>
         </View>
@@ -88,17 +93,24 @@ export default function SettingsScreen() {
         </View>
         <View style={[styles.settingGroup, { backgroundColor: theme.surface }]}>
           {renderSettingItem('email-outline', 'Contact Support', undefined, () => router.push('/screens/ContactSupportScreen'))}
+          {renderSettingItem('star-outline', 'Feedback', undefined, () => router.push('/screens/FeedbackScreen'))}
           {renderSettingItem('information-outline', 'About', undefined, () => router.push('/screens/AboutScreen'))}
-          {renderSettingItem('refresh', 'Reset App Data', undefined, resetAppData)}
         </View>
-      <View style={styles.logoutContainer}>
-         <SignOutButton
-           style={[styles.logoutButtonBase, { backgroundColor: theme.secondary }]}
-           textStyle={{ color: theme.text }}
-         />
-      </View>
-      </View>
+        
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Account</Text> 
+        </View>
+        <View   style={[styles.settingGroup, { backgroundColor: theme.surface, borderColor: 'rgba(255, 31, 31, 0.36)', borderWidth: 2, marginBottom: 20}]}>
+          {renderSettingItem('account-remove-outline', 'Delete Account', undefined, handleDeleteAccount)} 
+        </View>
 
+        <View style={styles.logoutContainer}>
+          <SignOutButton
+            style={[styles.logoutButtonBase, { backgroundColor: theme.secondary }]}
+            textStyle={{ color: theme.text }}
+          />
+        </View>
+      </View>
     </SafeAreaView>
   );
 }

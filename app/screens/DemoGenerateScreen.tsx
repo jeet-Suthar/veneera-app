@@ -24,6 +24,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getServerUrl } from '../utils/serverUrlStorage';
 
 // Veneer options
 const SHAPES = ["Natural", "Hollywood", "Cannie", "Oval", "Celebrity"] as const;
@@ -34,7 +35,6 @@ type Shape = typeof SHAPES[number];
 type Color = typeof COLORS[number];
 
 // Define constants
-const SERVER_URL = 'https://c531-3-238-118-170.ngrok-free.app';
 const DEFAULT_IMAGES_TO_GENERATE = 4;
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const DEMO_VIEWED_KEY = '@demo_viewed';
@@ -43,6 +43,25 @@ export default function DemoGenerateScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const router = useRouter();
+  
+  // State to store the server URL from Firestore
+  const [serverUrl, setServerUrl] = useState<string>('');
+
+  // Fetch server URL on component mount
+  useEffect(() => {
+    const fetchServerUrl = async () => {
+      try {
+        const url = await getServerUrl();
+        setServerUrl(url);
+        console.log('Server URL fetched:', url);
+      } catch (error) {
+        console.error('Error fetching server URL:', error);
+        Alert.alert('Connection Error', 'Could not connect to server. Please try again later.');
+      }
+    };
+    
+    fetchServerUrl();
+  }, []);
   
   const [image, setImage] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string>('');
@@ -186,6 +205,12 @@ export default function DemoGenerateScreen() {
       Alert.alert('No image', 'Please upload or take a photo first.');
       return;
     }
+    
+    if (!serverUrl) {
+      Alert.alert('Server Error', 'No server URL available. Please try again later.');
+      return;
+    }
+    
     // Reset state for 4 slots
     setGeneratedImages(Array(DEFAULT_IMAGES_TO_GENERATE).fill(''));
     setLoadingStates(Array(DEFAULT_IMAGES_TO_GENERATE).fill(true));
@@ -211,12 +236,12 @@ export default function DemoGenerateScreen() {
     formData.append('shape', shape);
     formData.append('color', color);
 
-    const serverUrl = `${SERVER_URL}/generate`;
+    const apiUrl = `${serverUrl}/generate`;
     console.log('Starting image generation batch...');
     
     try {
       const promises = Array.from({ length: DEFAULT_IMAGES_TO_GENERATE }).map((_, i) => 
-        fetchImage(serverUrl, formData, i)
+        fetchImage(apiUrl, formData, i)
       );
       await Promise.all(promises); // Run fetches concurrently if possible
       console.log('Image generation batch finished.');
@@ -329,6 +354,12 @@ export default function DemoGenerateScreen() {
       Alert.alert('No image', 'Source image is missing.');
       return;
     }
+
+    if (!serverUrl) {
+      Alert.alert('Server Error', 'No server URL available. Please try again later.');
+      return;
+    }
+    
     // Set loading state for this index
     setLoadingStates(prev => prev.map((s, i) => i === index ? true : s));
     setErrorMessages(prev => prev.map((e, i) => i === index ? '' : e));
@@ -351,9 +382,9 @@ export default function DemoGenerateScreen() {
     formData.append('shape', shape);
     formData.append('color', color);
 
-    const serverUrl = `${SERVER_URL}/generate`;
+    const apiUrl = `${serverUrl}/generate`;
     console.log(`Regenerating image ${index}...`);
-    await fetchImage(serverUrl, formData, index);
+    await fetchImage(apiUrl, formData, index);
     console.log(`Finished regeneration attempt for image ${index}`);
   };
 

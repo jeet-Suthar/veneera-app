@@ -140,7 +140,7 @@ export default function PremiumFeaturesScreen() {
           <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text} />
         </Pressable>     
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Veneera App</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Teethsi App</Text>
         <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
           Your Digital Dental Practice Assistant
         </Text>

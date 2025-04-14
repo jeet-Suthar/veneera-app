@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Text, TextInput, TouchableOpacity, View, StyleSheet, Alert, useColorScheme } from 'react-native';
+import { Text, TextInput, TouchableOpacity, View, StyleSheet, useColorScheme } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { Colors } from '../utils/theme';
@@ -7,6 +7,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import * as Google from 'expo-auth-session/providers/google';
+import IconSvg from '../../assets/images/icons/icon.svg';
+import { useAlert } from '../context/AlertContext';
+import GoogleSvg from '../../assets/images/icons/google-icon-logo-svgrepo-com.svg';
 
 // Ensure WebBrowser closes properly
 WebBrowser.maybeCompleteAuthSession();
@@ -19,6 +22,7 @@ export default function SignUpScreen() {
 
   const { signUp, signInWithGoogle, isLoading } = useAuth();
   const router = useRouter();
+  const alert = useAlert();
 
   const [emailAddress, setEmailAddress] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -27,7 +31,7 @@ export default function SignUpScreen() {
 
   // Google Auth Configuration
   const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: '40963473472-peg71vfppfj78gtpd5bj04cnjpq11u5d.apps.googleusercontent.com',
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
     clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
   });
@@ -58,7 +62,7 @@ export default function SignUpScreen() {
       await signInWithGoogle(idToken);
       router.replace('/tabs/HomeScreen');
     } catch (error: any) {
-      Alert.alert('Sign Up Error', error.message || 'An unknown error occurred during Google sign-up.');
+      alert.error(error.message || 'An unknown error occurred during Google sign-up.', 'Sign Up Error');
     }
   };
 
@@ -69,22 +73,29 @@ export default function SignUpScreen() {
   // Email/Password Sign Up
   const onSignUpPress = async () => {
     if (!emailAddress || !password) {
-      Alert.alert('Sign Up Error', 'Please enter both email and password.');
+      alert.warning('Please enter both email and password.', 'Sign Up Error');
       return;
     }
     
     try {
       await signUp(emailAddress, password);
-      Alert.alert('Success', 'Account created successfully! You can now sign in.');
+      // Show success message and navigate
+      alert.success('Account created successfully! You can now sign in.');
       router.replace('/tabs/HomeScreen');
     } catch (error: any) {
-      Alert.alert('Sign Up Error', error.message || 'An unknown error occurred during sign-up.');
+      alert.error(error.message || 'An unknown error occurred during sign-up.', 'Sign Up Error');
     }
   };
 
   // --- Render Main Sign Up Form ---
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Logo and Title */}
+      <View style={styles.headerContainer}>
+        <IconSvg width={styles.logo.width} height={styles.logo.height} fill={theme.text} style={styles.logo} />
+        <Text style={[styles.headerText, { color: theme.text }]}>Teethsi</Text>
+      </View>
+
       <Text style={[styles.title, { color: theme.text }]}>Create Account</Text>
 
       {/* Email Input */}
@@ -124,7 +135,7 @@ export default function SignUpScreen() {
 
       {/* Submit Button */}
       <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }, isLoading && styles.buttonDisabled]} onPress={onSignUpPress} disabled={isLoading}>
-        <Text style={[styles.buttonText, { color: theme.text }]}>{isLoading ? 'Signing Up...' : 'Sign Up'}</Text>
+        <Text style={[styles.buttonText, { color: '#fff'}]}>{isLoading ? 'Signing Up...' : 'Sign Up'}</Text>
       </TouchableOpacity>
 
       {/* Demo Button (conditional based on previous usage) */}
@@ -148,7 +159,8 @@ export default function SignUpScreen() {
         onPress={() => promptAsync()}
         disabled={isLoading}
       >
-        <MaterialCommunityIcons name="google" size={24} style={{ color: theme.background }} />
+        <GoogleSvg width={24} height={24} fill={theme.background} />
+
         <Text style={[styles.oauthButtonText, styles.googleButtonText]}>Sign up with Google</Text>
       </TouchableOpacity>
 
@@ -172,6 +184,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
     paddingHorizontal: 40,
+    paddingTop: 120,
   },
   title: {
     fontSize: 35,
@@ -265,5 +278,21 @@ const styles = StyleSheet.create({
   demoButtonText: {
     fontWeight: '600',
     fontSize: 16,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute',
+    top: 60,
+    left: 20,
+  },
+  logo: {
+    width: 40,
+    height: 40,
+    marginRight: 10,
+  },
+  headerText: {
+    fontSize: 24,
+    fontWeight: 'bold',
   },
 });

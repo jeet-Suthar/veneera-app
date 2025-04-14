@@ -1,15 +1,17 @@
 import React from 'react';
-import { Text, TextInput, TouchableOpacity, View, StyleSheet, Alert, useColorScheme } from 'react-native';
+import { Text, TextInput, TouchableOpacity, View, StyleSheet, useColorScheme } from 'react-native';
 import { Link, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import * as Google from 'expo-auth-session/providers/google';
-
+import IconSvg from '../../assets/images/icons/icon.svg';
+import GoogleSvg from '../../assets/images/icons/google-icon-logo-svgrepo-com.svg';
+import { useAlert } from '../context/AlertContext';
+import * as webBrowser from 'expo-web-browser'; 
 // Ensure WebBrowser closes properly
-WebBrowser.maybeCompleteAuthSession();
+webBrowser.maybeCompleteAuthSession();
 
 const DEMO_VIEWED_KEY = '@demo_viewed';
 
@@ -19,6 +21,7 @@ export default function SignInScreen() {
 
   const { signIn, signInWithGoogle, isLoading } = useAuth();
   const router = useRouter();
+  const alert = useAlert();
 
   const [emailAddress, setEmailAddress] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -27,7 +30,7 @@ export default function SignInScreen() {
 
   // Google Auth Configuration
   const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: '40963473472-peg71vfppfj78gtpd5bj04cnjpq11u5d.apps.googleusercontent.com',
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
     clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
   });
@@ -58,7 +61,7 @@ export default function SignInScreen() {
       await signInWithGoogle(idToken);
       router.replace('/tabs/HomeScreen');
     } catch (error: any) {
-      Alert.alert('Sign In Error', error.message || 'An unknown error occurred during Google sign-in.');
+      alert.error(error.message || 'An unknown error occurred during Google sign-in.', 'Sign In Error');
     }
   };
 
@@ -69,7 +72,7 @@ export default function SignInScreen() {
   // Email/Password Sign In
   const onSignInPress = async () => {
     if (!emailAddress || !password) {
-      Alert.alert('Sign In Error', 'Please enter both email and password.');
+      alert.warning('Please enter both email and password.', 'Sign In Error');
       return;
     }
 
@@ -77,13 +80,19 @@ export default function SignInScreen() {
       await signIn(emailAddress, password);
       router.replace('/tabs/HomeScreen');
     } catch (error: any) {
-      Alert.alert('Sign In Error', error.message || 'An unknown error occurred during sign-in.');
+      alert.error(error.message || 'An unknown error occurred during sign-in.', 'Sign In Error');
     }
   };
 
   // --- Render Sign In Form ---
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Logo and Title */}
+      <View style={styles.headerContainer}>
+        <IconSvg width={styles.logo.width} height={styles.logo.height} fill={theme.text} style={styles.logo} />
+        <Text style={[styles.headerText, { color: theme.text }]}>Teethsi</Text>
+      </View>
+
       <Text style={[styles.title , {color: theme.text} ]}>Welcome Back! Glad to see you, Again!</Text>
 
       {/* Email/Password Inputs */}
@@ -145,7 +154,7 @@ export default function SignInScreen() {
         onPress={() => promptAsync()}
         disabled={isLoading}
       >
-        <MaterialCommunityIcons name="google" size={24} style={{ color: theme.background }} />
+        <GoogleSvg width={24} height={24} fill={theme.background} />
         <Text style={[styles.oauthButtonText, styles.googleButtonText]}>Sign in with Google</Text>
       </TouchableOpacity>
 
@@ -169,6 +178,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
     paddingHorizontal: 40,
+    paddingTop: 120,
   },
   title: {
     fontSize: 35,
@@ -266,5 +276,21 @@ const styles = StyleSheet.create({
   demoButtonText: {
     fontWeight: '600',
     fontSize: 16,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute',
+    top: 60,
+    left: 20,
+  },
+  logo: {
+    width: 40,
+    height: 40,
+    marginRight: 10,
+  },
+  headerText: {
+    fontSize: 24,
+    fontWeight: 'bold',
   },
 }); 

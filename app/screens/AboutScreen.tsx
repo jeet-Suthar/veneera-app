@@ -15,6 +15,7 @@ import { router, Stack } from 'expo-router';
 import { Colors } from '../utils/theme';
 import Constants from 'expo-constants'; // For app version
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import IconSvg from '../../assets/images/icons/icon.svg';
 
 export default function AboutScreen() {
   const colorScheme = useColorScheme();
@@ -30,36 +31,36 @@ export default function AboutScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'About Veneera', headerBackTitle: 'Settings' }} />
+      <Stack.Screen options={{ title: 'About Teethsi', headerBackTitle: 'Settings' }} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
       <Pressable style={styles.backButton} onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text} />
         </Pressable>
         <View style={styles.logoContainer}>
           {/* Replace with your actual logo if available */}
-          <MaterialCommunityIcons name="tooth-outline" size={80} color={theme.primary} />
+          <IconSvg width={styles.logo.width} height={styles.logo.height} fill={theme.text} style={styles.logo} />
         </View>
-        <Text style={[styles.appName, { color: theme.text }]}>Veneera</Text>
+        <Text style={[styles.appName, { color: theme.text }]}>Teethsi</Text>
         <Text style={[styles.versionText, { color: theme.textSecondary }]}>Version {appVersion}</Text>
 
         <Text style={[styles.description, { color: theme.textSecondary }]}>
-          Veneera is a modern healthcare platform designed to streamline dental practice management and enhance patient care through intuitive tools and AI-powered insights.
+          Teethsi is a modern healthcare platform designed to streamline dental practice management and enhance patient care through intuitive tools and AI-powered insights.
         </Text>
 
-        <View style={styles.linksContainer}>
+        {/* <View style={styles.linksContainer}>
           <TouchableOpacity style={styles.linkItem} onPress={() => openLink(websiteUrl)}>
             <MaterialCommunityIcons name="web" size={20} color={theme.primary} />
             <Text style={[styles.linkText, { color: theme.primary }]}>Visit our Website</Text>
           </TouchableOpacity>
-          {/* <TouchableOpacity style={styles.linkItem} onPress={() => openLink(privacyUrl)}>
+          <TouchableOpacity style={styles.linkItem} onPress={() => openLink(privacyUrl)}>
             <MaterialCommunityIcons name="shield-lock-outline" size={20} color={theme.primary} />
             <Text style={[styles.linkText, { color: theme.primary }]}>Privacy Policy</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.linkItem} onPress={() => openLink(termsUrl)}>
             <MaterialCommunityIcons name="file-document-outline" size={20} color={theme.primary} />
             <Text style={[styles.linkText, { color: theme.primary }]}>Terms of Service</Text>
-          </TouchableOpacity> */}
-        </View>
+          </TouchableOpacity> 
+        </View> */}
 
         <Text style={[styles.footerText, { color: theme.textSecondary }]}>
           © {new Date().getFullYear()} Veneera Technologies. All rights reserved.
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
-    paddingTop: 46, 
+    paddingTop: 100, 
     alignItems: 'center', // Center content
   },
   logoContainer: {
@@ -94,9 +95,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   description: {
-    fontSize: 15,
+    fontSize: 17,
     lineHeight: 22,
-    textAlign: 'center',
+    textAlign: 'left',
     marginBottom: 32,
     paddingHorizontal: 16, // Add some horizontal padding
   },
@@ -121,7 +122,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   footerText: {
-    fontSize: 12,
+    fontSize: 14,
     textAlign: 'center',
     marginTop: 20,
   },
@@ -129,5 +130,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 46,
     left: 26,
+  },
+  logo: {
+    width: 80,
+    height: 80,
   },
 }); 

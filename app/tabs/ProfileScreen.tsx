@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, useColorScheme, Image, Pressable, ScrollView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, useColorScheme, Image, Pressable, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getCurrentUser } from '../utils/patientStorage';
 import { getUserProfile, saveUserProfile, UserProfile } from '../utils/userProfileStorage';
 import * as ImagePicker from 'expo-image-picker';
+import { useAlert } from '../context/AlertContext';
 
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const alert = useAlert();
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [editedProfile, setEditedProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [bio, setBio] = useState('');
-  const [editedBio, setEditedBio] = useState('Obsessed with perfect smiles...smilophilia');
+  const [editedBio, setEditedBio] = useState('');
 
   useEffect(() => {
     loadProfile();
@@ -38,7 +40,7 @@ export default function ProfileScreen() {
             photoUrl: 'https://api.a0.dev/assets/image?text=professional%20headshot%20of%20male%20doctor%20in%20white%20coat',
             yearsOfExperience: 0,
             totalPatients: 0,
-            bio: '🦷 Passionately dedicated to creating beautiful smiles! When I\'m not crafting perfect veneers, you\'ll find me exploring the latest dental innovations or dreaming about the next perfect smile transformation. Remember: A smile is the best accessory anyone can wear! 😊'
+            bio: 'obsessed with perfect smiles...smilophilia'
           };
           await saveUserProfile(userId, defaultProfile);
           setProfile(defaultProfile);
@@ -49,7 +51,7 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error('Error loading profile:', error);
-      Alert.alert('Error', 'Failed to load profile');
+      alert.error('Failed to load profile');
     } finally {
       setLoading(false);
     }
@@ -71,11 +73,11 @@ export default function ProfileScreen() {
         setProfile(updatedProfile);
         setBio(editedBio);
         setIsEditing(false);
-        Alert.alert('Success', 'Profile updated successfully');
+        alert.success('Profile updated successfully');
       }
     } catch (error) {
       console.error('Error saving profile:', error);
-      Alert.alert('Error', 'Failed to save profile');
+      alert.error('Failed to save profile');
     }
   };
 
@@ -102,7 +104,7 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      alert.error('Failed to pick image');
     }
   };
 
@@ -179,13 +181,14 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        <View style={styles.statsContainer}>
+          {/* will add this later */}
+        {/* <View style={styles.statsContainer}>
           <View style={styles.statsRow}>
             <StatCard icon="account-group" value={profile?.totalPatients || 0} label="Patients" />
             <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
             <StatCard icon="clock-outline" value={profile?.yearsOfExperience || 0} label="Years" />
           </View>
-        </View>
+        </View> */}
 
         {/* Bio Section */}
         <View style={styles.sectionHeader}>

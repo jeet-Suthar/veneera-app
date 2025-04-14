@@ -20,8 +20,8 @@ export default function ContactSupportScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const router = useRouter();
-  const supportEmail = 'Jitendrasutharwork@gmail.com'; // Placeholder email
-  const supportPhone = '+91 8432737144'; // Placeholder phone
+  const supportEmail = 'teethsiapp@gmail.com'; // Placeholder email
+  const supportPhone = '+'; // Placeholder phone
 
   const handleEmailPress = () => {
     Linking.openURL(`mailto:${supportEmail}?subject=Veneera App Support Request`);
@@ -59,7 +59,8 @@ export default function ContactSupportScreen() {
           <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textSecondary} />
         </TouchableOpacity>
 
-        <TouchableOpacity
+{/* i will not share my phone number yet */}
+        {/* <TouchableOpacity
           style={[styles.contactButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
           onPress={handlePhonePress}
         >
@@ -69,7 +70,7 @@ export default function ContactSupportScreen() {
             <Text style={[styles.contactValue, { color: theme.primary }]}>{supportPhone}</Text>
           </View>
           <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textSecondary} />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         {/* Quick Message Form (Optional) */}
         {/* <Text style={[styles.formTitle, { color: theme.text }]}>Or Send a Quick Message</Text>

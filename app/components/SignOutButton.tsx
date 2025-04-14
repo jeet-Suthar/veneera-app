@@ -1,7 +1,8 @@
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Text, TouchableOpacity, StyleSheet, Alert, StyleProp, ViewStyle, TextStyle } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet, StyleProp, ViewStyle, TextStyle } from 'react-native';
+import { useAlert } from '../context/AlertContext';
 
 // Define prop types
 interface SignOutButtonProps {
@@ -13,18 +14,25 @@ export const SignOutButton: React.FC<SignOutButtonProps> = ({ style, textStyle }
   // Use `useAuth()` to access the `signOutUser()` function
   const { signOutUser, isLoading } = useAuth();
   const router = useRouter(); // Use router for navigation
+  const alert = useAlert();
 
   const handleSignOut = async () => {
     if (isLoading) return;
     
-    try {
-      await signOutUser();
-      // Redirect to the sign-in page after successful sign-out
-      router.replace('/');  // This will redirect to sign-in through the root index redirection
-    } catch (err: any) {
-      console.error('Sign Out Error:', err);
-      Alert.alert('Sign Out Error', err.message || 'An error occurred during sign-out.');
-    }
+    alert.confirm(
+      "Sign Out",
+      "Are you sure you want to sign out of your account?",
+      async () => {
+        try {
+          await signOutUser();
+          // Redirect to the sign-in page after successful sign-out
+          router.replace('/');  // This will redirect to sign-in through the root index redirection
+        } catch (err: any) {
+          console.error('Sign Out Error:', err);
+          alert.error(err.message || 'An error occurred during sign-out.');
+        }
+      }
+    );
   };
 
   return (

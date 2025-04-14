@@ -181,7 +181,7 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View>
             <Text style={[styles.welcome, { color: theme.textSecondary }]}>
-              Welcome back
+              Welcome
             </Text>
             <Text style={[styles.doctorName, { color: theme.text }]}>
               Dr. {currentUserEmail?.split('@')[0] || 'User'}
