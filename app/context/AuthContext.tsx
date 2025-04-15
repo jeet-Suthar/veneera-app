@@ -103,15 +103,23 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
           const userData = JSON.parse(storedUserData);
           console.log('Found stored auth data, attempting to restore session');
           
-          // Update the user state with stored data
+          // Update the user state with stored data temporarily
           // This will show the user as logged in immediately while Firebase validates
           setUser(userData as any);
           
-          // Try to use the token with Firebase if needed
-          // But we'll let onAuthStateChanged handle the final verification
+          // Firebase auth should automatically restore the session with browserLocalPersistence
+          // But in case it doesn't, we can try to manually refresh the auth state
+          try {
+            // Force a token refresh if needed
+            await auth.currentUser?.getIdToken(true);
+          } catch (error) {
+            console.warn('Failed to refresh token:', error);
+            // Don't clear data yet, let onAuthStateChanged handle it
+          }
         }
       } catch (error) {
         console.error('Error retrieving stored auth data:', error);
+        await clearUserData();
       } finally {
         setIsLoading(false);
       }
@@ -141,6 +149,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
     setError(null);
     try {
       setIsLoading(true);
+      // Persistence is now handled at auth initialization in firebase.js
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       await storeUserData(userCredential.user);
     } catch (error: any) {
@@ -155,6 +164,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
     setError(null);
     try {
       setIsLoading(true);
+      // Persistence is now handled at auth initialization in firebase.js
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await storeUserData(userCredential.user);
     } catch (error: any) {
@@ -183,6 +193,9 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
     setError(null);
     try {
       setIsLoading(true);
+      console.log('Signing in with Google');
+      console.log('idToken', idToken);
+      // Persistence is now handled at auth initialization in firebase.js
       const credential = GoogleAuthProvider.credential(idToken);
       const userCredential = await signInWithCredential(auth, credential);
       await storeUserData(userCredential.user);

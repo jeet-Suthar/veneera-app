@@ -31,9 +31,9 @@ export default function SignUpScreen() {
 
   // Google Auth Configuration
   const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID,
     clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_IOS_CLIENT_ID,
   });
 
   // Check if demo has been viewed
@@ -58,11 +58,13 @@ export default function SignUpScreen() {
   }, [response]);
 
   const handleGoogleLogin = async (idToken: string) => {
+    console.log('handleGoogleLogin', idToken);
     try {
       await signInWithGoogle(idToken);
       router.replace('/tabs/HomeScreen');
     } catch (error: any) {
       alert.error(error.message || 'An unknown error occurred during Google sign-up.', 'Sign Up Error');
+      console.warn('Error signing in with Google:', error);
     }
   };
 

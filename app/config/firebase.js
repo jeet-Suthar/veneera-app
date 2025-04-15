@@ -4,7 +4,9 @@ import { getAuth } from 'firebase/auth';
 // Import Analytics conditionally to avoid errors in React Native
 import { isSupported, getAnalytics } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore";
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { initializeAuth , getReactNativePersistence} from 'firebase/auth';
+
+// @ts-ignore
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 // Your web app's Firebase configuration
@@ -34,6 +36,10 @@ if (typeof window !== 'undefined') {
 }
 
 // Initialize Auth
-const auth = getAuth(app);
+// Replacing the standard auth initialization with persistence-enabled initialization
+// const auth = getAuth(app);
+const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(ReactNativeAsyncStorage)
+});
 
 export { auth, app, db }; 

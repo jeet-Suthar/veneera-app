@@ -13,7 +13,7 @@ import * as webBrowser from 'expo-web-browser';
 // Ensure WebBrowser closes properly
 webBrowser.maybeCompleteAuthSession();
 
-const DEMO_VIEWED_KEY = '@demo_viewed';
+const DEMO_VIEWED_KEY = '@demo_viewed';   
 
 export default function SignInScreen() {
   const colorScheme = useColorScheme();
@@ -30,9 +30,9 @@ export default function SignInScreen() {
 
   // Google Auth Configuration
   const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID,
     clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_IOS_CLIENT_ID,
   });
 
   // Check if demo has been viewed
@@ -52,6 +52,7 @@ export default function SignInScreen() {
   React.useEffect(() => {
     if (response?.type === 'success') {
       const { id_token } = response.params;
+      console.log('this is the id_token', id_token);
       handleGoogleLogin(id_token);
     }
   }, [response]);
@@ -62,6 +63,8 @@ export default function SignInScreen() {
       router.replace('/tabs/HomeScreen');
     } catch (error: any) {
       alert.error(error.message || 'An unknown error occurred during Google sign-in.', 'Sign In Error');
+      console.log(error);
+      console.log(idToken);
     }
   };
 
