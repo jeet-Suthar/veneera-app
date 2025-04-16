@@ -5,13 +5,47 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import { Colors } from './utils/theme';
 import * as SecureStore from 'expo-secure-store';
+import { auth } from './config/firebase';
+
+// Constants for the AUTH storage keys
+const USER_STORAGE_KEY = '@auth_user';
+const TOKEN_STORAGE_KEY = '@auth_token';
 
 export default function Index() {
   const { user, isLoading } = useAuth();
   const [hasSeenLanding, setHasSeenLanding] = useState<boolean | null>(null);
   const [initialCheckComplete, setInitialCheckComplete] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+
+  // Check if we have stored authentication data
+  useEffect(() => {
+    const checkStoredAuth = async () => {
+      try {
+        // Check if we have stored credentials (even if Firebase auth hasn't initialized yet)
+        const storedUser = await AsyncStorage.getItem(USER_STORAGE_KEY);
+        const storedToken = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
+        
+        if (storedUser && storedToken) {
+          console.log('Found stored auth data on app start');
+          
+          // Wait a bit for Firebase to initialize
+          setTimeout(() => {
+            setIsRestoringSession(false);
+          }, 3000); // Give Firebase some time to restore the session
+        } else {
+          // No stored credentials, no need to wait
+          setIsRestoringSession(false);
+        }
+      } catch (error) {
+        console.error('Error checking stored auth:', error);
+        setIsRestoringSession(false);
+      }
+    };
+    
+    checkStoredAuth();
+  }, []);
 
   // Check if the user has seen the landing screen before
   useEffect(() => {
@@ -31,7 +65,7 @@ export default function Index() {
   }, []);
 
   // Show a loading indicator while we're checking auth state and landing screen status
-  if (isLoading || !initialCheckComplete) {
+  if (isLoading || !initialCheckComplete || isRestoringSession) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
         <ActivityIndicator size="large" color={theme.primary} />
@@ -41,7 +75,7 @@ export default function Index() {
   }
 
   // If the user is signed in, redirect to the main tabs
-  if (user) {
+  if (user || auth.currentUser) {
     return <Redirect href="/tabs/HomeScreen" />;
   }
   

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, TextInput, TouchableOpacity, View, StyleSheet, useColorScheme } from 'react-native';
+import { Text, TextInput, TouchableOpacity, View, StyleSheet, useColorScheme, Platform } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -27,12 +27,20 @@ export default function SignInScreen() {
   const [password, setPassword] = React.useState('');
   const [showPassword, setShowPassword] = React.useState(false);
   const [demoViewed, setDemoViewed] = React.useState(false);
+  const [googleAuthInProgress, setGoogleAuthInProgress] = React.useState(false);
 
-  // Google Auth Configuration
+  // Google Auth Configuration with proper platform-specific settings
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID,
     clientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
     iosClientId: process.env.EXPO_PUBLIC_IOS_CLIENT_ID,
+    // Add proper redirect URI for web
+    redirectUri: Platform.select({
+      web: 'http://localhost:8081/tabs/HomeScreen',
+      default: undefined
+    }),
+    // Proper scopes for Google Sign-In
+    scopes: ['profile', 'email'],
   });
 
   // Check if demo has been viewed
@@ -50,26 +58,99 @@ export default function SignInScreen() {
 
   // Handle Google Auth Response
   React.useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      console.log('this is the id_token', id_token);
-      handleGoogleLogin(id_token);
+    if (response?.type === 'success' && !googleAuthInProgress) {
+      setGoogleAuthInProgress(true);
+      const { id_token, access_token } = response.params;
+      
+      // Log for debugging
+      console.log('Google auth success response:', response.type);
+      console.log('id_token:', id_token);
+      console.log('access_token:', access_token);
+      
+      // Handle based on what data we received
+      if (id_token) {
+        handleGoogleLogin(id_token);
+      } else if (access_token) {
+        // Some platforms only return access_token - handle this case
+        console.log('Using access_token for authentication (no id_token received)');
+        handleGoogleLoginWithAccessToken(access_token);
+      } else {
+        alert.error('Google authentication did not return valid tokens', 'Authentication Error');
+        setGoogleAuthInProgress(false);
+      }
+    } else if (response?.type === 'error') {
+      console.error('Google auth error:', response.error);
+      alert.error(`Google Sign-In failed: ${response.error?.message || 'Unknown error'}`, 'Authentication Error');
+      setGoogleAuthInProgress(false);
     }
   }, [response]);
 
   const handleGoogleLogin = async (idToken: string) => {
     try {
+      if (!idToken) {
+        throw new Error('No ID token received from Google');
+      }
       await signInWithGoogle(idToken);
       router.replace('/tabs/HomeScreen');
     } catch (error: any) {
       alert.error(error.message || 'An unknown error occurred during Google sign-in.', 'Sign In Error');
-      console.log(error);
-      console.log(idToken);
+      console.error('Google sign-in error:', error);
+    } finally {
+      setGoogleAuthInProgress(false);
+    }
+  };
+
+  // Alternative method for platforms that don't return id_token
+  const handleGoogleLoginWithAccessToken = async (accessToken: string) => {
+    try {
+      // For web, we can construct a credential with GoogleAuthProvider.credential
+      // but access_token alone doesn't work - we'd need to exchange it for an ID token
+      // This is just a fallback for demonstration
+      alert.warning('Sign-in with access token is not fully implemented', 'Sign In Info');
+      console.log('Access token received but full implementation needed:', accessToken);
+      
+      // In a real implementation, you'd make a server call to exchange the access token
+      // for user information or an ID token
+      // For now, redirect to email login as fallback
+      setGoogleAuthInProgress(false);
+    } catch (error: any) {
+      alert.error(error.message || 'An unknown error occurred during Google sign-in.', 'Sign In Error');
+      console.error('Google sign-in with access token error:', error);
+      setGoogleAuthInProgress(false);
     }
   };
 
   const handleTryDemo = () => {
-    router.push('/screens/DemoGenerateScreen');
+    router.push('../../screens/DemoGenerateScreen');
+  };
+
+  // Handle Google button press with platform-specific approach
+  const handleGoogleButtonPress = async () => {
+    try {
+      // Display a loading state during Google auth
+      setGoogleAuthInProgress(true);
+      
+      // Check if the request is ready (especially important for web)
+      if (!request) {
+        // On web, the request might not be ready immediately
+        console.log('Google auth request not ready yet');
+        if (Platform.OS === 'web') {
+          alert.info('Preparing Google Sign-In...', 'Please wait');
+          setTimeout(() => {
+            setGoogleAuthInProgress(false);
+          }, 2000);
+        }
+        return;
+      }
+      
+      // Log for debugging
+      console.log('Starting Google auth flow');
+      await promptAsync();
+    } catch (error) {
+      console.error('Error starting Google auth:', error);
+      alert.error('Failed to start Google authentication', 'Authentication Error');
+      setGoogleAuthInProgress(false);
+    }
   };
 
   // Email/Password Sign In
@@ -107,7 +188,7 @@ export default function SignInScreen() {
         placeholderTextColor={theme.textSecondary}
         style={[styles.input, { backgroundColor: theme.surface, color: theme.text }]}
         keyboardType="email-address"
-        editable={!isLoading}
+        editable={!isLoading && !googleAuthInProgress}
       />
       {/* Password Input with Toggle */}
       <View style={[styles.passwordContainer, { backgroundColor: theme.surface }]}>
@@ -118,11 +199,12 @@ export default function SignInScreen() {
           onChangeText={setPassword}
           placeholderTextColor={theme.textSecondary}
           style={[styles.passwordInput, { backgroundColor: theme.surface, color: theme.text }]}
-          editable={!isLoading}
+          editable={!isLoading && !googleAuthInProgress}
         />
         <TouchableOpacity
           style={styles.eyeIcon}
           onPress={() => setShowPassword(!showPassword)}
+          disabled={isLoading || googleAuthInProgress}
         >
           <MaterialCommunityIcons
             name={showPassword ? "eye-off" : "eye"}
@@ -133,7 +215,11 @@ export default function SignInScreen() {
       </View>
       
       {/* Submit Button */}
-      <TouchableOpacity style={[styles.button, isLoading && styles.buttonDisabled]} onPress={onSignInPress} disabled={isLoading}>
+      <TouchableOpacity 
+        style={[styles.button, (isLoading || googleAuthInProgress) && styles.buttonDisabled]} 
+        onPress={onSignInPress} 
+        disabled={isLoading || googleAuthInProgress}
+      >
         <Text style={[styles.buttonText, { color: theme.text }]}>{isLoading ? 'Signing In...' : 'Sign In'}</Text>
       </TouchableOpacity>
       
@@ -142,7 +228,7 @@ export default function SignInScreen() {
         <TouchableOpacity 
           style={[styles.demoButton, { borderColor: theme.primary }]} 
           onPress={handleTryDemo}
-          disabled={isLoading}
+          disabled={isLoading || googleAuthInProgress}
         >
           <MaterialCommunityIcons name="image-filter-hdr" size={20} color={theme.primary} />
           <Text style={[styles.demoButtonText, { color: theme.primary }]}>Try Our AI Demo First</Text>
@@ -153,19 +239,21 @@ export default function SignInScreen() {
       
       {/* Google Sign In Button */}
       <TouchableOpacity
-        style={[styles.oauthButton, styles.googleButton, isLoading && styles.buttonDisabled]}
-        onPress={() => promptAsync()}
-        disabled={isLoading}
+        style={[styles.oauthButton, styles.googleButton, (isLoading || googleAuthInProgress) && styles.buttonDisabled]}
+        onPress={handleGoogleButtonPress}
+        disabled={isLoading || googleAuthInProgress}
       >
         <GoogleSvg width={24} height={24} fill={theme.background} />
-        <Text style={[styles.oauthButtonText, styles.googleButtonText]}>Sign in with Google</Text>
+        <Text style={[styles.oauthButtonText, styles.googleButtonText]}>
+          {googleAuthInProgress ? 'Connecting...' : 'Sign in with Google'}
+        </Text>
       </TouchableOpacity>
 
       {/* Link to Sign Up */}
       <View style={styles.footer}>
         <Text style={[ { color: theme.textSecondary }]}>Don't have an account?</Text>
         <Link href="/(auth)/sign-up" asChild>
-           <TouchableOpacity>
+           <TouchableOpacity disabled={isLoading || googleAuthInProgress}>
             <Text style={[styles.linkText, { color: theme.primary }]}>Sign up</Text>
            </TouchableOpacity>
         </Link>

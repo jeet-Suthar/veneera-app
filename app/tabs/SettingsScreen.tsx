@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { useAlert } from '../context/AlertContext';
 import { rgbaArrayToRGBAColor } from 'react-native-reanimated/lib/typescript/Colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
@@ -24,7 +25,9 @@ export default function SettingsScreen() {
         try {
           await deleteAccount();
           alert.success("Your account has been deleted successfully.");
-          router.replace('/(auth)/sign-in');
+          await signOutUser();
+          await AsyncStorage.clear(); 
+          router.replace('/screens/LandingScreen');
         } catch (error: any) {
           console.error("Error deleting account:", error);
           if (error.code === 'auth/requires-recent-login') {
@@ -39,7 +42,7 @@ export default function SettingsScreen() {
                   style: "default",
                   onPress: async () => {
                     await signOutUser();
-                    router.replace('/(auth)/sign-in');
+                    router.replace('/screens/LandingScreen');
                   }
                 }
               ]
@@ -92,9 +95,9 @@ export default function SettingsScreen() {
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Help & Information</Text>
         </View>
         <View style={[styles.settingGroup, { backgroundColor: theme.surface }]}>
-          {renderSettingItem('email-outline', 'Contact Support', undefined, () => router.push('/screens/ContactSupportScreen'))}
-          {renderSettingItem('star-outline', 'Feedback', undefined, () => router.push('/screens/FeedbackScreen'))}
-          {renderSettingItem('information-outline', 'About', undefined, () => router.push('/screens/AboutScreen'))}
+          {renderSettingItem('email-outline', 'Contact Support', undefined, () => router.push('../screens/ContactSupportScreen'))}
+          {renderSettingItem('star-outline', 'Feedback', undefined, () => router.push('../screens/FeedbackScreen'))}
+          {renderSettingItem('information-outline', 'About', undefined, () => router.push('../screens/AboutScreen'))}
         </View>
         
         <View style={styles.sectionHeader}>
