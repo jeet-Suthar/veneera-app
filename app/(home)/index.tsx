@@ -1,38 +1,42 @@
-import { SignedIn, SignedOut, useUser } from '@clerk/clerk-expo';
+import React from 'react';
+import { useAuth } from '../context/AuthContext';
 import { Link } from 'expo-router';
 import { Text, View, StyleSheet, TouchableOpacity } from 'react-native';
 import { SignOutButton } from '../components/SignOutButton';
 
 export default function HomePage() {
-  const { user, isLoaded } = useUser();
+  const { user, isLoading } = useAuth();
 
-  if (!isLoaded) {
+  if (isLoading) {
     return (
-       <View style={styles.container}>
-           <Text>Loading...</Text>
-       </View>
-     );
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
   }
 
   return (
     <View style={styles.container}>
-      <SignedIn>
-        <Text style={styles.greeting}>Hello, {user?.primaryEmailAddress?.emailAddress ?? 'User'}!</Text>
-        <SignOutButton />
-      </SignedIn>
-      <SignedOut>
-         <Text style={styles.infoText}>Please sign in or sign up to continue.</Text>
-        <Link href="/(auth)/sign-in" asChild>
-           <TouchableOpacity style={styles.linkButton}>
-             <Text style={styles.linkButtonText}>Sign In</Text>
-           </TouchableOpacity>
-        </Link>
-        <Link href="/(auth)/sign-up" asChild>
-           <TouchableOpacity style={styles.linkButton}>
-             <Text style={styles.linkButtonText}>Sign Up</Text>
-           </TouchableOpacity>
-        </Link>
-      </SignedOut>
+      {user ? (
+        <>
+          <Text style={styles.greeting}>Hello, {user?.email ?? 'User'}!</Text>
+          <SignOutButton />
+        </>
+      ) : (
+        <>
+          <Text style={styles.infoText}>Please sign in or sign up to continue.</Text>
+          <Link href="/(auth)/sign-in" asChild>
+            <TouchableOpacity style={styles.linkButton}>
+              <Text style={styles.linkButtonText}>Sign In</Text>
+            </TouchableOpacity>
+          </Link>
+          <Link href="/(auth)/sign-up" asChild>
+            <TouchableOpacity style={styles.linkButton}>
+              <Text style={styles.linkButtonText}>Sign Up</Text>
+            </TouchableOpacity>
+          </Link>
+        </>
+      )}
     </View>
   );
 }

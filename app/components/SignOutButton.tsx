@@ -1,7 +1,8 @@
-import { useClerk } from '@clerk/clerk-expo';
+import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Text, TouchableOpacity, StyleSheet, Alert, StyleProp, ViewStyle, TextStyle } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet, StyleProp, ViewStyle, TextStyle } from 'react-native';
+import { useAlert } from '../context/AlertContext';
 
 // Define prop types
 interface SignOutButtonProps {
@@ -10,36 +11,39 @@ interface SignOutButtonProps {
 }
 
 export const SignOutButton: React.FC<SignOutButtonProps> = ({ style, textStyle }) => {
-  // Use `useClerk()` to access the `signOut()` function
-  const { signOut } = useClerk();
+  // Use `useAuth()` to access the `signOutUser()` function
+  const { signOutUser, isLoading } = useAuth();
   const router = useRouter(); // Use router for navigation
-  const [loading, setLoading] = React.useState(false);
+  const alert = useAlert();
 
   const handleSignOut = async () => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      await signOut();
-      // Redirect to the sign-in page after successful sign-out
-      // Replace might be better if you don't want the user going back to the signed-in state
-      router.replace('/');  // This will redirect to sign-in through the root index redirection
-    } catch (err: any) {
-      console.error('Sign Out Error:', JSON.stringify(err, null, 2));
-      Alert.alert('Sign Out Error', err.errors ? err.errors[0].message : 'An error occurred during sign-out.');
-    } finally {
-      setLoading(false);
-    }
+    if (isLoading) return;
+    
+    alert.confirm(
+      "Sign Out",
+      "Are you sure you want to sign out of your account?",
+      async () => {
+        try {
+          await signOutUser();
+          // Redirect to the sign-in page after successful sign-out
+          router.replace('/');  // This will redirect to sign-in through the root index redirection
+        } catch (err: any) {
+          console.error('Sign Out Error:', err);
+          alert.error(err.message || 'An error occurred during sign-out.');
+        }
+      }
+    );
   };
 
   return (
     // Apply default styles and merge with passed-in styles
     <TouchableOpacity
-      style={[styles.button, loading && styles.buttonDisabled, style]} // Merge default and custom button styles
+      style={[styles.button, isLoading && styles.buttonDisabled, style]} // Merge default and custom button styles
       onPress={handleSignOut}
-      disabled={loading}
+      disabled={isLoading}
     >
       <Text style={[styles.buttonText, textStyle]}> {/* Merge default and custom text styles */}
-        {loading ? 'Signing Out...' : 'Sign Out'}
+        {isLoading ? 'Signing Out...' : 'Sign Out'}
       </Text>
     </TouchableOpacity>
   );
@@ -67,3 +71,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#a3a3a3',
   },
 }); 
+
+export default SignOutButton;

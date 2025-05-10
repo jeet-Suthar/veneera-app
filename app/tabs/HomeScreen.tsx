@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, useColorScheme, Pressable, Animated, Image, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, useColorScheme, Pressable, Animated, Image, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import { Patient } from '../types';
+import { Patient } from '../types/index';
 import { getCurrentUser, getPatientsForUser } from '../utils/patientStorage'; // Import helpers
 
 export default function HomeScreen() {
@@ -17,6 +17,14 @@ export default function HomeScreen() {
   const [recentPatients, setRecentPatients] = useState<Patient[]>([]); // State for recent patients
   const [loadingPatients, setLoadingPatients] = useState(true); // Loading state
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [totalPatients, setTotalPatients] = useState(0);
+  const [recentActivityCount, setRecentActivityCount] = useState(0);
+  const [upcomingAppointments, setUpcomingAppointments] = useState<Patient[]>([]);
+  const [tasks, setTasks] = useState([
+    { id: '1', title: 'Review patient records', completed: false },
+    { id: '2', title: 'Schedule follow-ups', completed: false },
+    { id: '3', title: 'Update treatment plans', completed: false },
+  ]);
 
   // Fetch user and patient data when the screen comes into focus
   useFocusEffect(
@@ -24,21 +32,47 @@ export default function HomeScreen() {
       const loadData = async () => {
         setLoadingPatients(true);
         try {
-          const userEmail = await getCurrentUser(); // Use helper
+          const userEmail = await getCurrentUser();
           setCurrentUserEmail(userEmail);
           
           if (userEmail) {
-            const allPatients = await getPatientsForUser(userEmail); // Use helper
+            const allPatients = await getPatientsForUser(userEmail);
+            setTotalPatients(allPatients.length);
+            
+            // Calculate recent activity (last 7 days)
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            const recentPatients = allPatients.filter(patient => 
+              new Date(patient.lastVisit) >= sevenDaysAgo
+            );
+            setRecentActivityCount(recentPatients.length);
+
+            // Sort and get recent patients for display
             const sortedPatients = allPatients
               .sort((a, b) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime())
               .slice(0, 2);
             setRecentPatients(sortedPatients);
+            
+            // Get upcoming appointments
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const upcomingPatients = allPatients
+              .filter(patient => patient.nextAppointment && new Date(patient.nextAppointment) >= today)
+              .sort((a, b) => new Date(a.nextAppointment || 0).getTime() - new Date(b.nextAppointment || 0).getTime())
+              .slice(0, 3);
+            setUpcomingAppointments(upcomingPatients);
           } else {
-            setRecentPatients([]); // No user logged in
+            setTotalPatients(0);
+            setRecentActivityCount(0);
+            setRecentPatients([]);
+            setUpcomingAppointments([]);
           }
         } catch (error) {
           console.error('Error loading home screen data:', error);
-          setRecentPatients([]); // Reset on error
+          setTotalPatients(0);
+          setRecentActivityCount(0);
+          setRecentPatients([]);
+          setUpcomingAppointments([]);
         } finally {
           setLoadingPatients(false);
         }
@@ -96,10 +130,49 @@ export default function HomeScreen() {
   };
 
   const navigateToPatientDetail = (patientId: string) => {
-    router.push({
-      pathname: "/screens/PatientDetailScreen",
-      params: { patientId }
-    });
+    try {
+      router.push({
+        pathname: "/screens/PatientDetailScreen",
+        params: { patientId }
+      });
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Fallback navigation or show error toast
+      Alert.alert('Navigation Error', 'Unable to open patient details. Please try again.'+ error);
+    }
+  };
+
+  const navigateToAddPatient = () => {
+    try {
+      router.push('/tabs/AddPatientScreen');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Navigation Error', 'Unable to navigate. Please try again.'+ error);
+    }
+  };
+
+  const navigateToGenerateImages = () => {
+    try {
+      router.push('/screens/GenerateImagesScreen');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Navigation Error', 'Unable to navigate. Please try again.'+ error);
+    }
+  };
+
+  const navigateToManageScreen = () => {
+    try {
+      router.push('/tabs/ManageScreen');
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Navigation Error', 'Unable to navigate. Please try again.');
+    }
+  };
+
+  const toggleTaskCompletion = (taskId: string) => {
+    setTasks(tasks.map(task => 
+      task.id === taskId ? { ...task, completed: !task.completed } : task
+    ));
   };
 
   return (
@@ -108,31 +181,143 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View>
             <Text style={[styles.welcome, { color: theme.textSecondary }]}>
-              {/* Welcome */}
+              Welcome
             </Text>
             <Text style={[styles.doctorName, { color: theme.text }]}>
-              {/* {user?.fullName} */}
+              Dr. {currentUserEmail?.split('@')[0] || 'User'}
             </Text>
           </View>
-          <Pressable
+          {/* will do this in update 2 */}
+          {/* <Pressable
             onPress={toggleOverlay}
             style={[styles.notificationBadge, { backgroundColor: theme.surface }]}
           >
             <MaterialCommunityIcons name="bell-outline" size={22} color={theme.primary} />
             <View style={[styles.badge, { backgroundColor: theme.error }]} />
-          </Pressable>
+          </Pressable> */}
         </View>
 
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.statNumber, { color: theme.text }]}>12</Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Today's Patients</Text>
+            <Text style={[styles.statNumber, { color: theme.text }]}>{totalPatients}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Total Patients</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.statNumber, { color: theme.text }]}>95%</Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Completion Rate</Text>
+            <Text style={[styles.statNumber, { color: theme.text }]}>{recentActivityCount}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Last 7 Days</Text>
           </View>
         </View>
+
+        {/* Quick Actions Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            Quick Actions
+          </Text>
+        </View>
+        <View style={styles.quickActionsContainer}>
+          <Pressable 
+            style={[styles.actionButton, { backgroundColor: theme.cardBackground }]}
+            onPress={navigateToAddPatient}
+          >
+            <MaterialCommunityIcons name="account-plus" size={24} color={theme.primary} />
+            <Text style={[styles.actionText, { color: theme.text }]}>Add Patient</Text>
+          </Pressable>
+          {/* <Pressable 
+            style={[styles.actionButton, { backgroundColor: theme.cardBackground }]}
+            onPress={navigateToGenerateImages}
+          >
+            <MaterialCommunityIcons name="image-plus" size={24} color={theme.primary} />
+            <Text style={[styles.actionText, { color: theme.text }]}>Generate Images</Text>
+          </Pressable> */}
+          <Pressable 
+            style={[styles.actionButton, { backgroundColor: theme.cardBackground }]}
+            onPress={navigateToManageScreen}
+          >
+            <MaterialCommunityIcons name="account-group" size={24} color={theme.primary} />
+            <Text style={[styles.actionText, { color: theme.text }]}>Manage Patients</Text>
+          </Pressable>
+        </View>
+
+        {/* Today's Schedule Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            Today's Schedule
+          </Text>
+        </View>
+        {upcomingAppointments.length > 0 ? (
+          <View style={styles.scheduleContainer}>
+            {upcomingAppointments.map((patient) => (
+              <View 
+                key={patient.id}
+                style={[styles.scheduleItem, { backgroundColor: theme.cardBackground }]}
+              >
+                <View style={styles.scheduleTime}>
+                  <MaterialCommunityIcons name="clock-outline" size={16} color={theme.primary} />
+                  <Text style={[styles.scheduleTimeText, { color: theme.text }]}>
+                    {new Date(patient.nextAppointment || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </View>
+                <View style={styles.scheduleInfo}>
+                  <Text style={[styles.schedulePatientName, { color: theme.text }]}>{patient.name}</Text>
+                  <Text style={[styles.scheduleDetails, { color: theme.textSecondary }]}>
+                    {patient.age} years • {patient.phone}
+                  </Text>
+                </View>
+                <Pressable 
+                  style={[styles.scheduleAction, { backgroundColor: theme.primary }]}
+                  onPress={() => navigateToPatientDetail(patient.id)}
+                >
+                  <MaterialCommunityIcons name="chevron-right" size={16} color="#fff" />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={[styles.emptyContainer, { backgroundColor: theme.cardBackground }]}>
+            <MaterialCommunityIcons name="calendar-blank" size={24} color={theme.textSecondary} />
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              No appointments scheduled for today
+            </Text>
+          </View>
+        )}
+
+        {/* Tasks Section (replacing Tips & Reminders) */}
+        {/* <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            Tasks
+          </Text>
+        </View>
+        <View style={[styles.tasksContainer, { backgroundColor: theme.cardBackground }]}>
+          {tasks.map((task) => (
+            <Pressable 
+              key={task.id}
+              style={styles.taskItem}
+              onPress={() => toggleTaskCompletion(task.id)}
+            >
+              <View style={[
+                styles.checkbox, 
+                { 
+                  backgroundColor: task.completed ? theme.primary : 'transparent',
+                  borderColor: task.completed ? theme.primary : theme.textSecondary
+                }
+              ]}>
+                {task.completed && (
+                  <MaterialCommunityIcons name="check" size={14} color="#fff" />
+                )}
+              </View>
+              <Text style={[
+                styles.taskText, 
+                { 
+                  color: theme.text,
+                  textDecorationLine: task.completed ? 'line-through' : 'none',
+                  opacity: task.completed ? 0.7 : 1
+                }
+              ]}>
+                {task.title}
+              </Text>
+            </Pressable>
+          ))}
+        </View>  */}
 
         {/* Conditionally render Recent Patients section */}
         {loadingPatients ? (
@@ -195,6 +380,9 @@ export default function HomeScreen() {
              <Text style={{ color: theme.textSecondary }}>No recent patient activity.</Text>
            </View>
         )}
+        
+        {/* Add extra padding at the bottom to prevent content from being hidden behind navbar */}
+        <View style={styles.bottomPadding} />
       </ScrollView>
 
       {isOverlayVisible && (
@@ -251,10 +439,7 @@ const styles = StyleSheet.create({
   notificationBadge: {
     padding: 10,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
+    boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.08)',
   },
   badge: {
     width: 8,
@@ -275,10 +460,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 14,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
+    boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.08)',
   },
   statNumber: {
     fontSize: 26,
@@ -364,10 +546,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     paddingHorizontal: 16,
     borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
     elevation: 6,
     zIndex: 2,
   },
@@ -401,5 +580,107 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     marginTop: 10,
     // You can add more styling here if needed
+  },
+  quickActionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  actionButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginHorizontal: 4,
+    boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
+  },
+  actionText: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  scheduleContainer: {
+    marginBottom: 24,
+  },
+  scheduleItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
+  },
+  scheduleTime: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+    minWidth: 70,
+  },
+  scheduleTimeText: {
+    marginLeft: 4,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  scheduleInfo: {
+    flex: 1,
+  },
+  schedulePatientName: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  scheduleDetails: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  scheduleAction: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  emptyText: {
+    marginTop: 8,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  tasksContainer: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)',
+    elevation: 2,
+  },
+  taskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  taskText: {
+    fontSize: 14,
+    flex: 1,
+  },
+  bottomPadding: {
+    height: 80, // Add enough padding to prevent content from being hidden behind navbar
   },
 });

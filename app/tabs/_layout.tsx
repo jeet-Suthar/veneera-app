@@ -1,99 +1,139 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useColorScheme, View, StyleSheet } from "react-native";
+import { useColorScheme, View, StyleSheet, Pressable } from "react-native";
 import { Colors } from "../utils/theme";
+import { useState } from "react";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
   return (
-    <Tabs
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarIcon: ({ color, focused }) => {
-          let iconName: any;
-          let size = 24;
-          
-          if (route.name === "HomeScreen") iconName = focused ? "home" : "home-outline";
-          else if (route.name === "ManageScreen") iconName = focused ? "list" : "list-outline";
-          else if (route.name === "AddPatientScreen") iconName = "add";
-          else if (route.name === "SettingsScreen") iconName = focused ? "settings" : "settings-outline";
-          else if (route.name === "ProfileScreen") iconName = focused ? "person" : "person-outline";
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Tabs
+        screenOptions={({ route }) => ({
+          headerShown: false,
+          tabBarIcon: ({ color, focused }) => {
+            let iconName: keyof typeof Ionicons.glyphMap;
+            
+            try {
+              if (route.name === "HomeScreen") iconName = focused ? "home" : "home-outline";
+              else if (route.name === "ManageScreen") iconName = focused ? "list" : "list-outline";
+              else if (route.name === "AddPatientScreen") iconName = "add";
+              else if (route.name === "SettingsScreen") iconName = focused ? "settings" : "settings-outline";
+              else if (route.name === "ProfileScreen") iconName = focused ? "person" : "person-outline";
+              else iconName = "help-circle";
 
-          return (
-            <View style={[
-              styles.iconContainer,
-              route.name === "AddPatientScreen" && styles.addButtonContainer
-            ]}>
-              <Ionicons name={iconName} size={route.name === "AddPatientScreen" ? 32 : size} color={color} />
-            </View>
-          );
-        },
-        tabBarActiveTintColor: theme.primary,
-        tabBarInactiveTintColor: theme.textSecondary,
-        tabBarShowLabel: false,
-        tabBarStyle: { 
-          backgroundColor: theme.surface,
-          height: 70,
-          borderTopWidth: 0,
-          elevation: 0,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          position: 'absolute',
-          ...styles.shadow
-        },
-        tabBarItemStyle: {
-          paddingVertical: 10,
-        },
-      })}
-    >
-      <Tabs.Screen name="HomeScreen" />
-      <Tabs.Screen name="ManageScreen" />
-      <Tabs.Screen
-        name="AddPatientScreen"
-        options={{
+              // Special case for center button
+              if (route.name === "AddPatientScreen") {
+                return (
+                  <View style={styles.addButtonWrapper}>
+                    <View style={[styles.addButtonContainer, { backgroundColor: theme.primary }]}>
+                      <Ionicons name={iconName} size={24} color="white" />
+                    </View>
+                  </View>
+                );
+              }
+
+              return (
+                <View style={styles.tabIconContainer}>
+                  <Ionicons name={iconName} size={24} color={color} />
+                  {focused && <View style={[styles.activeIndicator, { backgroundColor: color }]} />}
+                </View>
+              );
+            } catch (error) {
+              console.error("Navigation error:", error);
+              // Return a fallback icon
+              return (
+                <View style={styles.tabIconContainer}>
+                  <Ionicons name="alert-circle" size={24} color={color} />
+                </View> 
+              );
+            }
+          },
+          tabBarActiveTintColor: theme.primary,
+          tabBarInactiveTintColor: theme.textSecondary,
+          tabBarShowLabel: false,
+          tabBarStyle: { 
+            backgroundColor: theme.surface,
+            height: 64,
+            borderTopWidth: 0,
+            elevation: 2,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            position: 'absolute',
+          },
           tabBarItemStyle: {
-            height: 70,
-            marginTop: -20,
-          }
-        }}
-      />
-      <Tabs.Screen name="SettingsScreen" />
-      <Tabs.Screen name="ProfileScreen" />
-    </Tabs>
+            paddingVertical: 12,
+          },
+          tabBarButton: (props) => (
+            <Pressable
+              {...props}
+              android_ripple={{ color: 'transparent' }}
+              android_disableSound={true}
+              style={props.style}
+            />
+          ),
+          contentStyle: { backgroundColor: theme.background },
+        })}
+      >
+        <Tabs.Screen name="HomeScreen" />
+        <Tabs.Screen name="ManageScreen" />
+        <Tabs.Screen
+          name="AddPatientScreen"
+          options={{
+            tabBarItemStyle: {
+              height: 64,
+            }
+          }}
+        />
+        <Tabs.Screen name="SettingsScreen" />
+        <Tabs.Screen name="ProfileScreen" />
+      </Tabs>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  shadow: {
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+  container: {
+    flex: 1,
   },
-  iconContainer: {
+  tabIconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    height: 40,
+    width: 40,
+  },
+  activeIndicator: {
+    height: 3,
+    width: 16,
+    borderRadius: 1.5,
+    position: 'absolute',
+    bottom: -6,
+  },
+  addButtonWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    top: -12,
   },
   addButtonContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#4D8EFF',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
-    shadowColor: '#4D8EFF',
+    shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5,
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   }
 });
+

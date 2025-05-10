@@ -15,7 +15,7 @@ export const Colors = {
     primary: 'rgba(59, 130, 246, 1)',
     secondary: 'rgba(30, 30, 30, 1)',
     background: 'rgb(19, 18, 18)',
-    surface: 'rgba(18, 18, 18, 1)',
+    surface: 'rgb(29, 29, 29)',
     text: 'rgba(255, 255, 255, 1)',
     textSecondary: 'rgba(163, 163, 163, 1)',
     border: 'rgba(42, 42, 42, 1)',

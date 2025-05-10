@@ -10,7 +10,6 @@ import {
   Modal,
   ActivityIndicator,
   TouchableOpacity,
-  Alert,
   Platform,
   TextInput,
   Dimensions,
@@ -20,7 +19,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../utils/theme';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import ReactNativeZoomableView from '@dudigital/react-native-zoomable-view/src/ReactNativeZoomableView';
+import { useAlert } from '../context/AlertContext';
+
+// remove this library for now because it's not working
+// import ReactNativeZoomableView from '@dudigital/react-native-zoomable-view/src/ReactNativeZoomableView';
+
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
@@ -28,6 +31,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { PatientData } from '../tabs/AddPatientScreen';
 import { getCurrentUser, getPatientsForUser, savePatientsForUser } from '../utils/patientStorage';
+import { getServerUrl } from '../utils/serverUrlStorage';
 
 // Veneer options
 const SHAPES = ["Natural", "Hollywood", "Cannie", "Oval", "Celebrity"] as const;
@@ -38,7 +42,6 @@ type Shape = typeof SHAPES[number];
 type Color = typeof COLORS[number];
 
 // Define constants at the top of the file
-const SERVER_URL = 'https://c531-3-238-118-170.ngrok-free.app';
 const DEFAULT_IMAGES_TO_GENERATE = 4;
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -46,6 +49,7 @@ export default function GenerateImagesScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
   const router = useRouter();
+  const alert = useAlert();
   
   // Get patient data from params
   const params = useLocalSearchParams();
@@ -68,6 +72,25 @@ export default function GenerateImagesScreen() {
       });
     }
   }, []); // Run only once
+
+  // State to store the server URL from Firestore
+  const [serverUrl, setServerUrl] = useState<string>('');
+
+  // Fetch server URL on component mount
+  useEffect(() => {
+    const fetchServerUrl = async () => {
+      try {
+        const url = await getServerUrl();
+        setServerUrl(url);
+        console.log('Server URL fetched:', url);
+      } catch (error) {
+        console.error('Error fetching server URL:', error);
+        alert.error('Connection Error', 'Could not connect to server. Please try again later.');
+      }
+    };
+    
+    fetchServerUrl();
+  }, []);
 
   const [image, setImage] = useState<string>('');
   const [selectedImage, setSelectedImage] = useState<string>('');
@@ -144,7 +167,7 @@ export default function GenerateImagesScreen() {
         const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
         permissionResult = cameraPermission.status;
         if (permissionResult !== 'granted') {
-          Alert.alert('Permission required', 'Camera access is needed to take a photo.');
+          alert.info('Permission required', 'Camera access is needed to take a photo.');
           return;
         }
         pickerResult = await ImagePicker.launchCameraAsync({
@@ -156,7 +179,7 @@ export default function GenerateImagesScreen() {
         const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
         permissionResult = libraryPermission.status;
         if (permissionResult !== 'granted') {
-          Alert.alert('Permission required', 'Photo library access is needed to choose an image.');
+          alert.info('Permission required', 'Photo library access is needed to choose an image.');
           return;
         }
         pickerResult = await ImagePicker.launchImageLibraryAsync({
@@ -184,7 +207,7 @@ export default function GenerateImagesScreen() {
       }
     } catch (error) {
       console.error(`Error picking image from ${source}:`, error);
-      Alert.alert('Error', `There was an error selecting the image from ${source}.`);
+      alert.error('Error', `There was an error selecting the image from ${source}.`);
     }
   };
 
@@ -193,9 +216,15 @@ export default function GenerateImagesScreen() {
     setSelectedForPatient(null);
     
     if (!image) {
-      Alert.alert('No image', 'Please upload or take a photo first.');
+      alert.warning('No image', 'Please upload or take a photo first.');
       return;
     }
+
+    if (!serverUrl) {
+      alert.error('Server Error', 'No server URL available. Please try again later.');
+      return;
+    }
+    
     // Reset state for 4 slots
     setGeneratedImages(Array(DEFAULT_IMAGES_TO_GENERATE).fill(''));
     setLoadingStates(Array(DEFAULT_IMAGES_TO_GENERATE).fill(true));
@@ -221,21 +250,20 @@ export default function GenerateImagesScreen() {
     formData.append('shape', shape);
     formData.append('color', color);
 
-    const serverUrl = `${SERVER_URL}/generate`;
+    const apiUrl = `${serverUrl}/generate`;
     console.log('Starting image generation batch...');
     
     try {
       const promises = Array.from({ length: DEFAULT_IMAGES_TO_GENERATE }).map((_, i) => 
-        fetchImage(serverUrl, formData, i)
+        fetchImage(apiUrl, formData, i)
       );
       await Promise.all(promises); // Run fetches concurrently if possible
       console.log('Image generation batch finished.');
     } catch (error) {
       console.error('Error during generation batch:', error);
-      Alert.alert(
+      alert.error(
         'Generation Error',
-        'An error occurred during image generation. Please check logs or try again.',
-        [{ text: 'OK' }]
+        'An error occurred during image generation. Please check logs or try again.'
       );
       // Reset loading states on global error
       setLoadingStates(Array(DEFAULT_IMAGES_TO_GENERATE).fill(false));
@@ -336,9 +364,15 @@ export default function GenerateImagesScreen() {
     }
     
     if (!image) {
-      Alert.alert('No image', 'Source image is missing.');
+      alert.warning('No image', 'Source image is missing.');
       return;
     }
+
+    if (!serverUrl) {
+      alert.error('Server Error', 'No server URL available. Please try again later.');
+      return;
+    }
+    
     // Set loading state for this index
     setLoadingStates(prev => prev.map((s, i) => i === index ? true : s));
     setErrorMessages(prev => prev.map((e, i) => i === index ? '' : e));
@@ -361,9 +395,9 @@ export default function GenerateImagesScreen() {
     formData.append('shape', shape);
     formData.append('color', color);
 
-    const serverUrl = `${SERVER_URL}/generate`;
+    const apiUrl = `${serverUrl}/generate`;
     console.log(`Regenerating image ${index}...`);
-    await fetchImage(serverUrl, formData, index);
+    await fetchImage(apiUrl, formData, index);
     console.log(`Finished regeneration attempt for image ${index}`);
   };
 
@@ -374,7 +408,7 @@ export default function GenerateImagesScreen() {
 
     const permission = await MediaLibrary.requestPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("Permission required", "Need access to media library to save images.");
+      alert.info("Permission required", "Need access to media library to save images.");
       return;
     }
 
@@ -400,21 +434,21 @@ export default function GenerateImagesScreen() {
       // Save the file to the media library
       const asset = await MediaLibrary.createAssetAsync(fileUri);
       await MediaLibrary.createAlbumAsync("Veneera Generated", asset, false);
-      Alert.alert("Success", "Image saved to your gallery in the 'Veneera Generated' album.");
+      alert.success("Success", "Image saved to your gallery in the 'Veneera Generated' album.");
     } catch (error) {
       console.error("Error saving image:", error);
-      Alert.alert("Error", "Could not save the image to your gallery.");
+      alert.error("Error", "Could not save the image to your gallery.");
     }
   };
 
   const createPatient = async () => {
     if (selectedForPatient === null) {
-      Alert.alert('No image selected', 'Please select one of the generated images.');
+      alert.warning('No image selected', 'Please select one of the generated images.');
       return;
     }
 
     if (!patientData.name) {
-      Alert.alert('Missing information', 'Patient name is required.');
+      alert.warning('Missing information', 'Patient name is required.');
       return;
     }
 
@@ -422,7 +456,7 @@ export default function GenerateImagesScreen() {
       const currentUser = await getCurrentUser();
       
       if (!currentUser) {
-        Alert.alert('Error', 'You need to be logged in to create a patient.');
+        alert.error('Error', 'You need to be logged in to create a patient.');
         return;
       }
       
@@ -445,17 +479,17 @@ export default function GenerateImagesScreen() {
       const success = await savePatientsForUser(currentUser, patients);
       
       if (success) {
-        Alert.alert(
+        alert.success(
           'Success',
-          'New patient created successfully!',
-          [{ text: 'OK', onPress: () => router.back() }]
+          'New patient created successfully!'
         );
+        router.push('/tabs/HomeScreen');
       } else {
-         Alert.alert('Error', 'Failed to save patient. Please try again.');
+         alert.error('Error', 'Failed to save patient. Please try again.');
       }
     } catch (error) {
       console.error('Error creating patient:', error);
-      Alert.alert('Error', 'Failed to create patient. Please try again.');
+      alert.error('Error', 'Failed to create patient. Please try again.');
     }
   };
 
@@ -539,7 +573,7 @@ export default function GenerateImagesScreen() {
           <View style={styles.errorContainer}>
             <MaterialIcons name="error-outline" size={24} color={theme.error} />
             <Text style={[styles.errorText, { color: theme.error }]}>
-              {errorMessages[index]}
+              Server is busy, please try again later!
             </Text>
             <TouchableOpacity
               style={[styles.retryButton, { backgroundColor: theme.primary }]}
@@ -593,7 +627,7 @@ export default function GenerateImagesScreen() {
               style={styles.regenerateIconButton}
               onPress={() => regenerateImage(index)}
             >
-              <MaterialIcons name="refresh" size={18} color="#fff" />
+              <MaterialIcons name="refresh" size={18} color="#fff" style={styles.regenerateIcon} />
             </TouchableOpacity>
           </View>
         ) : (
@@ -730,19 +764,11 @@ export default function GenerateImagesScreen() {
               viewabilityConfig={viewabilityConfig}
               renderItem={({ item, index }) => (
                 <View style={styles.modalPage}>
-                  <ReactNativeZoomableView
-                    maxZoom={2.5}
-                    minZoom={1}
-                    initialZoom={1}
-                    bindToBorders={true}
-                    style={styles.zoomableView}
-                  >
-                    <Image
-                      source={{ uri: item, cache: 'reload' }}
-                      style={styles.modalImage}
-                      resizeMode="contain"
-                    />
-                  </ReactNativeZoomableView>
+                  <Image
+                    source={{ uri: item, cache: 'reload' }}
+                    style={styles.modalImage}
+                    resizeMode="contain"
+                  />
                 </View>
               )}
             />
@@ -1034,6 +1060,9 @@ const styles = StyleSheet.create({
     padding: 6,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderRadius: 15,
+  },
+  regenerateIcon: {
+    color: 'white',
   },
   retryButton: {
     marginTop: 12,

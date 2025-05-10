@@ -1,47 +1,50 @@
-import React from 'react';
-import { ClerkProvider } from '@clerk/clerk-expo';
-import { tokenCache } from '@clerk/clerk-expo/token-cache';
+import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-
-// Add this cache implementation
-const cache = {
-  async getToken(key: string) {
-    try {
-      return SecureStore.getItemAsync(key);
-    } catch (err) {
-      return null;
-    }
-  },
-  async saveToken(key: string, value: string) {
-    try {
-      return SecureStore.setItemAsync(key, value);
-    } catch (err) {
-      return;
-    }
-  },
-};
+import { AuthProvider } from './context/AuthContext';
+import { AlertProvider } from './context/AlertContext';
+import { Colors } from './utils/theme';
+import { auth } from './config/firebase';
+import { Platform } from 'react-native';
 
 export default function RootLayout() {
-  const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
   const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
-  if (!publishableKey) {
-    throw new Error('Missing Clerk Publishable Key. Please set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in your .env file');
-  }
+  // Ensure Firebase auth is initialized early
+  useEffect(() => {
+    // Force early initialization of Firebase auth
+    // This helps with persistence on app restart
+    if (Platform.OS !== 'web') {
+      auth.currentUser; // Just accessing it will initialize auth
+      console.log('Firebase auth initialized in RootLayout');
+    }
+  }, []);
 
   return (
-    <ClerkProvider
-      tokenCache={cache} // Use the secure cache
-      publishableKey={publishableKey}
-    >
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="tabs" />
-      </Stack>
-    </ClerkProvider>
+    <AuthProvider>
+      <AlertProvider>
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
+          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+          <Stack 
+            screenOptions={{ 
+              headerShown: false,
+              contentStyle: { backgroundColor: theme.background },
+              animation: 'fade',
+            }}
+          >
+            <Stack.Screen name="tabs" />
+          </Stack>
+        </View>
+      </AlertProvider>
+    </AuthProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});
 // This layout file is used to define the main structure of the app.

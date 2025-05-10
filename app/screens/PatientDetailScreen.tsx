@@ -1,12 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, Pressable, useColorScheme, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, Pressable, useColorScheme, ActivityIndicator, Modal, StatusBar, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../utils/theme';
-import { Patient } from '../types';
+import { Patient } from '../types/index';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { getCurrentUser, getPatientsForUser, deletePatient } from '../utils/patientStorage'; // Import helpers and deletePatient
+import { useAlert } from '../context/AlertContext';
+import { 
+  PinchGestureHandler, 
+  TapGestureHandler, 
+  PanGestureHandler,
+  State, 
+  GestureHandlerRootView,
+  PinchGestureHandlerGestureEvent,
+  PanGestureHandlerGestureEvent
+} from 'react-native-gesture-handler';
+import Animated, { 
+  useAnimatedGestureHandler, 
+  useAnimatedStyle, 
+  useSharedValue, 
+  withTiming,
+  withSpring
+} from 'react-native-reanimated';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Define extended patient type with additional fields
 type ExtendedPatient = Patient & {
@@ -23,11 +42,115 @@ export default function PatientDetailScreen() {
   const { patientId } = useLocalSearchParams<{ patientId: string }>();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const alert = useAlert();
   
   const [patient, setPatient] = useState<ExtendedPatient | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Image viewer state
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  
+  // Animated values for pinch zoom
+  const scale = useSharedValue(1);
+  const focalX = useSharedValue(0);
+  const focalY = useSharedValue(0);
+  const lastScale = useSharedValue(1);
+  
+  // Additional animation values for panning
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const lastTranslateX = useSharedValue(0);
+  const lastTranslateY = useSharedValue(0);
+  
+  // Reference for double-tap handler
+  const doubleTapRef = React.useRef(null);
+  
+  // Handle pinch gesture with proper typing
+  const pinchHandler = useAnimatedGestureHandler<PinchGestureHandlerGestureEvent>({
+    onStart: (event) => {
+      focalX.value = event.focalX;
+      focalY.value = event.focalY;
+    },
+    onActive: (event) => {
+      // Limit scale between 0.5 and 5
+      scale.value = Math.min(Math.max(event.scale * lastScale.value, 0.5), 5);
+    },
+    onEnd: () => {
+      lastScale.value = scale.value;
+      // Reset to original scale if zoomed out too much
+      if (scale.value < 0.9) {
+        scale.value = withTiming(1);
+        lastScale.value = 1;
+      }
+    }
+  });
+  
+  // Handle pan gesture for moving the image when zoomed
+  const panHandler = useAnimatedGestureHandler<PanGestureHandlerGestureEvent>({
+    onStart: () => {
+      lastTranslateX.value = translateX.value;
+      lastTranslateY.value = translateY.value;
+    },
+    onActive: (event) => {
+      // Only allow panning when zoomed in
+      if (scale.value > 1) {
+        // Calculate max pan distance based on current zoom level
+        const maxPanX = (scale.value - 1) * SCREEN_WIDTH / 2;
+        const maxPanY = (scale.value - 1) * SCREEN_HEIGHT / 2;
+        
+        // Limit pan to the boundaries of the image
+        translateX.value = Math.min(
+          Math.max(lastTranslateX.value + event.translationX, -maxPanX),
+          maxPanX
+        );
+        translateY.value = Math.min(
+          Math.max(lastTranslateY.value + event.translationY, -maxPanY),
+          maxPanY
+        );
+      }
+    },
+    onEnd: () => {
+      // Add a little spring animation when releasing pan
+      translateX.value = withSpring(translateX.value);
+      translateY.value = withSpring(translateY.value);
+    }
+  });
+  
+  // Animated style for the image in modal (updated to include translation)
+  const animatedImageStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+        { scale: scale.value }
+      ]
+    };
+  });
+  
+  // Reset zoom and translation when modal is closed
+  const resetZoom = () => {
+    scale.value = 1;
+    lastScale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    lastTranslateX.value = 0;
+    lastTranslateY.value = 0;
+    setImageViewerVisible(false);
+  };
+
+  // Function to reset zoom on double-tap
+  const onDoubleTap = () => {
+    if (scale.value !== 1) {
+      scale.value = withTiming(1);
+      lastScale.value = 1;
+    } else {
+      // Zoom in to 2x if already at 1x
+      scale.value = withTiming(2);
+      lastScale.value = 2;
+    }
+  };
+
   // Load patient data from SecureStore
   useEffect(() => {
     const loadPatientData = async () => {
@@ -71,37 +194,29 @@ export default function PatientDetailScreen() {
   const handleDeletePatient = async () => {
     if (!patientId) return;
     
-    Alert.alert(
+    alert.confirm(
       "Delete Patient",
       "Are you sure you want to delete this patient? This action cannot be undone.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setLoading(true);
-              const success = await deletePatient(patientId);
-              
-              if (success) {
-                Alert.alert("Success", "Patient deleted successfully");
-                router.back();
-              } else {
-                Alert.alert("Error", "Failed to delete patient");
-              }
-            } catch (error) {
-              console.error('Error deleting patient:', error);
-              Alert.alert("Error", "An unexpected error occurred");
-            } finally {
-              setLoading(false);
-            }
+      async () => {
+        try {
+          setLoading(true);
+          const success = await deletePatient(patientId);
+          
+          if (success) {
+            alert.success("Patient deleted successfully");
+            router.back();
+          } else {
+            alert.error("Failed to delete patient");
           }
+        } catch (error) {
+          console.error('Error deleting patient:', error);
+          alert.error("An unexpected error occurred");
+        } finally {
+          setLoading(false);
         }
-      ]
+      },
+      undefined,
+      "warning"
     );
   };
 
@@ -250,7 +365,10 @@ export default function PatientDetailScreen() {
         </View>
 
         <View style={styles.imagesContainer}>
-          <Pressable style={[styles.imageCard, { backgroundColor: theme.surface }]}>
+          <Pressable 
+            style={[styles.imageCard, { backgroundColor: theme.surface }]}
+            onPress={() => setImageViewerVisible(true)}
+          >
             <Image 
               source={{ uri: patient.photoUrl }} 
               style={styles.aiImage}
@@ -258,7 +376,7 @@ export default function PatientDetailScreen() {
             />
             <View style={styles.imageFooter}>
               <Text style={[styles.imageText, { color: theme.textSecondary }]}>Veneer Design</Text>
-              <MaterialCommunityIcons name="arrow-expand" size={20} color={theme.primary} />
+              <MaterialCommunityIcons name="magnify-plus-outline" size={20} color={theme.textSecondary} />
             </View>
           </Pressable>
         </View>
@@ -278,13 +396,67 @@ export default function PatientDetailScreen() {
               <Text style={styles.actionText}>Email</Text>
             </Pressable>
           )}
-          
-          <Pressable style={[styles.actionButton2, { backgroundColor: theme.primary }]}>
+          {/* will add this feature later */}
+          {/* <Pressable style={[styles.actionButton2, { backgroundColor: theme.primary }]}>
             <MaterialCommunityIcons name="calendar-plus" size={20} color="white" />
             <Text style={styles.actionText}>Schedule</Text>
-          </Pressable>
+          </Pressable> */}
         </View>
       </ScrollView>
+
+      {/* Updated Image Viewer Modal */}
+      <Modal
+        visible={imageViewerVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={resetZoom}
+      >
+        <GestureHandlerRootView style={styles.modalContainer}>
+          <View style={[styles.modalContent, { backgroundColor: 'rgba(0,0,0,0.9)' }]}>
+            <StatusBar hidden />
+            
+            <Pressable style={styles.closeButton} onPress={resetZoom}>
+              <MaterialCommunityIcons name="close" size={28} color="white" />
+            </Pressable>
+            
+            {/* Double tap handler */}
+            <TapGestureHandler
+              ref={doubleTapRef}
+              numberOfTaps={2}
+              onHandlerStateChange={({ nativeEvent }) => {
+                if (nativeEvent.state === State.ACTIVE) {
+                  onDoubleTap();
+                }
+              }}
+            >
+              {/* Pan handler for moving image when zoomed */}
+              <Animated.View style={styles.gestureContainer}>
+                <PanGestureHandler onGestureEvent={panHandler}>
+                  <Animated.View style={styles.gestureContainer}>
+                    {/* Pinch handler for zooming */}
+                    <PinchGestureHandler onGestureEvent={pinchHandler}>
+                      <Animated.View style={[styles.animatedImageContainer, animatedImageStyle]}>
+                        {patient && (
+                          <Image
+                            source={{ uri: patient.photoUrl }}
+                            style={styles.fullScreenImage}
+                            resizeMode="contain"
+                          />
+                        )}
+                      </Animated.View>
+                    </PinchGestureHandler>
+                  </Animated.View>
+                </PanGestureHandler>
+              </Animated.View>
+            </TapGestureHandler>
+            
+            <View style={styles.zoomInstructions}>
+              <MaterialCommunityIcons name="gesture-spread" size={24} color="white" />
+              <Text style={styles.zoomInstructionsText}>Pinch to zoom • Double-tap to toggle • Pan to move</Text>
+            </View>
+          </View>
+        </GestureHandlerRootView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -461,5 +633,61 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
-  }
+  },
+  
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+  },
+  modalContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  animatedImageContainer: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.8,
+  },
+  zoomInstructions: {
+    position: 'absolute',
+    bottom: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  zoomInstructionsText: {
+    color: 'white',
+    marginLeft: 8,
+    fontSize: 16,
+  },
+  gestureContainer: {
+    flex: 1,
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 }); 
